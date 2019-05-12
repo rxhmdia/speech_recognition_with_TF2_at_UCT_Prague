@@ -16,6 +16,10 @@ class FLAGS:
     save_dir = "./results/"
     checkpoint_path = None
 
+    num_runs = 5
+    max_epochs = 100
+    batch_size_per_GPU = 8
+
     #    num_data = 391216
     num_train_data = int(48812 / 2)  # full ORAL == 374714/2
     num_test_data = int(4796 / 2)  # full ORAL == 16502/2
@@ -26,9 +30,6 @@ class FLAGS:
     shuffle_seed = 42
 
     num_cpu_cores = tf.data.experimental.AUTOTUNE
-
-    max_epochs = 100
-    batch_size_per_GPU = 8
 
     bucket_width = 100
 
