@@ -26,7 +26,7 @@ class FLAGS:
     num_features = 123
     min_time = 100
     max_time = 3000  # TODO: change back to 3000 when including PDTSC
-    buffer_size = 1000
+    buffer_size = int(0.2*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
 
     num_cpu_cores = tf.data.experimental.AUTOTUNE
@@ -39,8 +39,8 @@ class FLAGS:
     # MODEL
     conv_params = {
         'channels': [32, 64, 128],
-        'kernels': [(15, 30), (15, 30), (15, 30)],
-        'strides': [(2, 4), (2, 5), (1, 6)],
+        'kernels': [(16, 32), (8, 16), (4, 8)],
+        'strides': [(2, 4), (2, 4), (1, 4)],
         'dilation_rates': [(1, 1), (1, 1), (1, 1)],
         'padding': 'same',
         'data_format': 'channels_last',

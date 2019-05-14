@@ -16,10 +16,11 @@ def _parse_proto(example_proto):
 
 
 def _read_tfrecords(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrecord"),
-                    shuffle=False, seed=None, cycle_length=100):
+                    shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
     files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
     ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto,
                                                                    num_parallel_calls=FLAGS.num_cpu_cores),
+                          block_length=block_length,
                           cycle_length=cycle_length,
                           num_parallel_calls=FLAGS.num_cpu_cores)
     ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=FLAGS.num_cpu_cores)
@@ -62,7 +63,8 @@ def load_datasets(load_dir):
         files = [f for f in files if '.tfrecord' in f]
         fullpaths = [os.path.join(path, f) for f in files]
         if folder_name == '' and len(files) > 0:
-            ds = _read_tfrecords(fullpaths, shuffle=True, seed=FLAGS.shuffle_seed,
+            num_data = FLAGS.num_train_data + FLAGS.num_test_data
+            ds = _read_tfrecords(fullpaths, shuffle=True, seed=FLAGS.shuffle_seed, block_length=num_data,
                                  cycle_length=1)
             ds = ds.shuffle(FLAGS.num_train_data + FLAGS.num_test_data, seed=FLAGS.shuffle_seed,
                             reshuffle_each_iteration=False)
@@ -72,10 +74,11 @@ def load_datasets(load_dir):
                   'split into ds_train ({}) and ds_test ({})'.format(path, FLAGS.num_train_data, 'rest'))
             break
         if folder_name == 'test':
-            ds_test = _read_tfrecords(fullpaths)
+            ds_test = _read_tfrecords(fullpaths, block_length=FLAGS.num_test_data)
             print('test dataset loaded from {}'.format(path))
         elif folder_name == 'train':
-            ds_train = _read_tfrecords(fullpaths, shuffle=True)
+            # don't shuffle if using shards, because bucketting doesn't work well with shards
+            ds_train = _read_tfrecords(fullpaths, block_length=FLAGS.num_train_data)
             print('train dataset loaded from {}'.format(path))
         else:
             continue
