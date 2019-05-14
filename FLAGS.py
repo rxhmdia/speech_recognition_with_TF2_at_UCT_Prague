@@ -26,7 +26,7 @@ class FLAGS:
     num_features = 123
     min_time = 100
     max_time = 3000  # TODO: change back to 3000 when including PDTSC
-    buffer_size = int(0.2*num_train_data/batch_size_per_GPU)
+    buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
 
     num_cpu_cores = tf.data.experimental.AUTOTUNE
@@ -37,7 +37,17 @@ class FLAGS:
     label_pad_val = -1
 
     # MODEL
+    save_architecture_image = True
+    show_shapes = True
+
+    ff_first_params = {
+        'use': True,
+        'num_units': [128, 64],
+        'batch_norm': False,
+        'drop_rates': [0., 0.],
+    }
     conv_params = {
+        'use': True,
         'channels': [32, 64, 128],
         'kernels': [(16, 32), (8, 16), (4, 8)],
         'strides': [(2, 4), (2, 4), (1, 4)],
@@ -45,17 +55,22 @@ class FLAGS:
         'padding': 'same',
         'data_format': 'channels_last',
         'batch_norm': True,
+        'drop_rates': [0., 0.],
     }
     bn_momentum = 0.9
     relu_clip_val = 20
     relu_alpha = 0.2
     rnn_params = {
+        'use': True,
         'num_units': [256, 256],
-        'batch_norm': True,
+        'batch_norm': False,
+        'drop_rates': [0., 0.],
     }
     ff_params = {
+        'use': True,
         'num_units': [128, 64],
-        'batch_norm': True,
+        'batch_norm': False,
+        'drop_rates': [0., 0.],
     }
 
     # Optimizer

@@ -5,7 +5,7 @@ from datetime import datetime
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.keras.layers import Reshape, Conv2D, BatchNormalization, GRU, Bidirectional, Dense, ReLU, Permute, Lambda
+from tensorflow.keras.layers import Reshape, Conv2D, Dropout, BatchNormalization, GRU, Bidirectional, Dense, ReLU, Permute, Lambda
 from tensorflow.keras import Model
 import tensorflow.keras.backend as K
 
@@ -28,9 +28,7 @@ def _conv_output_shape(input_shape, filt_shape, filt_stride, padding="same"):
     return time_output_size, feat_output_size
 
 
-def _conv_reduce_rate():
-    max_time = FLAGS.max_time
-    num_features = FLAGS.num_features
+def _conv_reduce_rate(max_time, num_features):
     for kernel_size, strides in zip(FLAGS.conv_params['kernels'], FLAGS.conv_params['strides']):
         max_time, num_features = _conv_output_shape((max_time, num_features), kernel_size, strides,
                                                     FLAGS.conv_params['padding'])
@@ -38,7 +36,7 @@ def _conv_reduce_rate():
     return max_time, num_features, max_time/FLAGS.max_time, num_features/FLAGS.num_features
 
 
-def conv(x, n_channels, kernel_size, strides=(1, 1), dilation_rate=(1, 1), batch_norm=True):
+def conv(x, n_channels, kernel_size, strides=(1, 1), dilation_rate=(1, 1), batch_norm=True, drop_rate=0.):
     x = Conv2D(filters=n_channels,
                kernel_size=kernel_size,
                strides=strides,
@@ -47,45 +45,70 @@ def conv(x, n_channels, kernel_size, strides=(1, 1), dilation_rate=(1, 1), batch
                dilation_rate=dilation_rate)(x)
     x = ReLU(max_value=FLAGS.relu_clip_val,
              negative_slope=FLAGS.relu_alpha)(x)
-    return BatchNormalization(momentum=FLAGS.bn_momentum)(x) if batch_norm else x
+    if batch_norm:
+        x = BatchNormalization(momentum=FLAGS.bn_momentum)(x)
+    if 0. < drop_rate < 1.:
+        x = Dropout(drop_rate)(x)
+    return x
 
 
-def rnn(x, num_units, batch_norm=True):
+def rnn(x, num_units, batch_norm=True, drop_rate=0.):
     x = Bidirectional(GRU(num_units, return_sequences=True))(x)
-    return BatchNormalization(momentum=FLAGS.bn_momentum)(x) if batch_norm else x
+    if batch_norm:
+        x = BatchNormalization(momentum=FLAGS.bn_momentum)(x)
+    if 0. < drop_rate < 1.:
+        x = Dropout(drop_rate)(x)
+    return x
 
 
-def ff(x, num_units, batch_norm=True):
+def ff(x, num_units, batch_norm=True, drop_rate=0.):
     x = Dense(num_units)(x)
     x = ReLU(max_value=FLAGS.relu_clip_val,
              negative_slope=FLAGS.relu_alpha)(x)
-    return BatchNormalization(momentum=FLAGS.bn_momentum)(x) if batch_norm else x
+    if batch_norm:
+        x = BatchNormalization(momentum=FLAGS.bn_momentum)(x)
+    if 0. < drop_rate < 1.:
+        x = Dropout(drop_rate)(x)
+    return x
 
 
 def build_model():
     # Input 1
     x_in = tf.keras.Input(shape=(None, FLAGS.num_features))
-    x = Lambda(lambda x: tf.expand_dims(x, -1))(x_in)
-    #    x = Masking(mask_value=FLAGS.feature_pad_val)(x)
-
-    _, num_features, _, _ = _conv_reduce_rate()
+    x = x_in
+    # Feedforward layers at start
+    if FLAGS.ff_first_params['use']:
+        for ff_num_units, drop_rate in zip(FLAGS.ff_first_params['num_units'], FLAGS.ff_first_params['drop_rates']):
+            x = ff(x, ff_num_units, FLAGS.ff_first_params['batch_norm'], drop_rate)
+        num_features = FLAGS.ff_first_params['num_units'][-1]
+    else:
+        num_features = FLAGS.num_features
 
     # Convolutional layers
-    for n_channels, kernel_size, strides, dilation_rate in zip(FLAGS.conv_params['channels'],
-                                                               FLAGS.conv_params['kernels'],
-                                                               FLAGS.conv_params['strides'],
-                                                               FLAGS.conv_params['dilation_rates']):
-        x = conv(x, n_channels, kernel_size, strides, dilation_rate, FLAGS.conv_params['batch_norm'])
-    x = Reshape((-1, int(tf.math.ceil(num_features)) * FLAGS.conv_params['channels'][-1]))(x)
+    if FLAGS.conv_params['use']:
+        x = Lambda(lambda x: tf.expand_dims(x, -1))(x)
+        _, num_features, _, _ = _conv_reduce_rate(FLAGS.max_time, num_features)
+        for n_channels, kernel_size, strides, dilation_rate, drop_rate in zip(FLAGS.conv_params['channels'],
+                                                                              FLAGS.conv_params['kernels'],
+                                                                              FLAGS.conv_params['strides'],
+                                                                              FLAGS.conv_params['dilation_rates'],
+                                                                              FLAGS.conv_params['drop_rates']):
+            x = conv(x, n_channels, kernel_size, strides, dilation_rate, FLAGS.conv_params['batch_norm'], drop_rate)
+        x = Reshape((-1, int(tf.math.ceil(num_features)) * FLAGS.conv_params['channels'][-1]))(x)
 
     # Recurrent layers
-    for rnn_num_units in FLAGS.rnn_params['num_units']:
-        x = rnn(x, rnn_num_units, FLAGS.rnn_params['batch_norm'])
+    if FLAGS.rnn_params['use']:
+        for rnn_num_units, drop_rate in zip(FLAGS.rnn_params['num_units'], FLAGS.rnn_params['drop_rates']):
+            x = rnn(x, rnn_num_units, FLAGS.rnn_params['batch_norm'], drop_rate)
 
-    # Feedforward layers
-    for ff_num_units in FLAGS.ff_params['num_units']:
-        x = ff(x, ff_num_units, FLAGS.ff_params['batch_norm'])
+    # Feedforward layers at end
+    if FLAGS.ff_params['use']:
+        for ff_num_units, drop_rate in zip(FLAGS.ff_params['num_units'], FLAGS.ff_params['drop_rates']):
+            x = ff(x, ff_num_units, FLAGS.ff_params['batch_norm'], drop_rate)
+
+    # Output logits
     logits = Dense(FLAGS.alphabet_size + 1)(x)
+
     return Model(inputs=x_in, outputs=logits)
 
 
@@ -164,7 +187,7 @@ def train_fn(model, dataset, optimizer, num_batches, save_path, epoch):
      - write total_loss to TB summary to 'save_path/train'
      - save the trained model to 'save_path' """
     batch_no = 0
-    _, _, time_reduce_rate, _ = _conv_reduce_rate()
+    _, _, time_reduce_rate, _ = _conv_reduce_rate(FLAGS.max_time, FLAGS.num_features)
     train_loss = tf.keras.metrics.Sum(name='train_loss', dtype=tf.float32)
     with tqdm(range(num_batches), unit="batch") as timer:
         for inputs in dataset:
@@ -182,7 +205,7 @@ def train_fn(model, dataset, optimizer, num_batches, save_path, epoch):
 
 def test_fn(model, dataset, num_batches, epoch):
     batch_no = 0
-    _, _, time_reduce_rate, _ = _conv_reduce_rate()
+    _, _, time_reduce_rate, _ = _conv_reduce_rate(FLAGS.max_time, FLAGS.num_features)
     test_loss = tf.keras.metrics.Sum(name='test_loss', dtype=tf.float32)
     test_cer = tf.keras.metrics.Mean(name='test_cer', dtype=tf.float32)
     with tqdm(range(num_batches), unit="batch") as timer:

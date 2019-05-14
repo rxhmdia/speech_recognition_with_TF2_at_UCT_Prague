@@ -1,4 +1,5 @@
 import json
+import os
 
 import tensorflow as tf
 
@@ -12,6 +13,8 @@ if __name__ == '__main__':
         tf.keras.backend.clear_session()
         ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir)
         model = build_model()
+#        print('Trainable params: {}'.format(model.count_params()))
+        print(model.summary())
 
         # Load model weights from checkpoint if checkpoint_path is provided
         if FLAGS.checkpoint_path:
@@ -26,6 +29,10 @@ if __name__ == '__main__':
         with open(save_path + '/config.json', 'w') as f:
             json.dump(
                 {key: value for key, value in FLAGS.__dict__.items() if not key.startswith('__') and not callable(key)}, f)
+
+        # save model architecture image to save_dir
+        if FLAGS.save_architecture_image:
+            tf.keras.utils.plot_model(model, os.path.join(save_path, 'architecture.png'), show_shapes=FLAGS.show_shapes)
 
         optimizer = tf.keras.optimizers.Adam(lr=FLAGS.lr, epsilon=FLAGS.epsilon, amsgrad=FLAGS.amsgrad)
 
