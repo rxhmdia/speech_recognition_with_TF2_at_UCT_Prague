@@ -29,3 +29,15 @@ def create_save_path(exist_ok=True):
     os.makedirs(save_path, exist_ok=exist_ok)
 
     return save_path
+
+
+def decay_value(base_value, decay_rate, decay_steps, step):
+    """ decay base_value by decay_rate every decay_steps
+
+    :param base_value:
+    :param decay_rate:
+    :param decay_steps:
+    :param step:
+    :return: decayed value
+    """
+    return base_value*decay_rate**(step/decay_steps)
