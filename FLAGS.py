@@ -10,8 +10,8 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
-    # load_dir = "b:/!temp/PDTSC_Debug/"
-    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
+    load_dir = "b:/!temp/PDTSC_Debug/"
+    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
     # load_dir = "g:/datasets/ORAL_08"
     save_dir = "./results/"
@@ -92,3 +92,22 @@ class FLAGS:
     # Early stopping
     patience_epochs = 3
 
+
+class PREDICTION_FLAGS(FLAGS):
+
+    recording = {
+        "rate": 16000,
+        "updates_per_second": 10,
+        "channels": 1,
+        "max_record_seconds": 30,
+    }
+
+    features = {
+        "type": "MFSC",
+        "energy": True,
+        "deltas": (2, 2),
+    }
+
+    model = {
+        "path": "d:/!private/lord/git/speech_recognition_2/results/2019-0515-172359_conv[32-64](bn)_rnn[128](bn)_ff[64](bn)/model.h5",
+    }

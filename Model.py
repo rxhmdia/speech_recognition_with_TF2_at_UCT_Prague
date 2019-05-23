@@ -164,9 +164,11 @@ def decode_best_output(labels, logits, label_length, logit_length):
     truth = K.ctc_label_dense_to_sparse(tf.cast(labels, tf.int32), label_length)
 
     cer = tf.edit_distance(decoded[0], truth, name="levenshtein_distance")
+    print(cer)
     cer = tf.boolean_mask(cer, tf.not_equal(cer, np.inf))  # remove inf values (where the length of labels == 0)
 
     mean_cer = tf.reduce_mean(cer)
+    print(mean_cer)
 
     return tf.sparse.to_dense(decoded[0], default_value=FLAGS.label_pad_val), mean_cer
 
@@ -317,6 +319,51 @@ def train_model(run_number):
             print('Model stopped early at epoch {}'.format(epoch))
             break
 
+
+def predict_from_saved_model(path_to_model, feature_inputs, beam_width=FLAGS.beam_width, top_paths=FLAGS.top_paths):
+    """ Load model from path_to_model, calculate logits from feature_input and decode outputs
+    to produce prediction string
+
+    :param path_to_model: (str) path to .h5 saved model
+    :param feature_inputs: (numpy float array or list of numpy float arrays)
+    :param beam_width: (int) beam width of ctc beam search decoder
+    :param top_paths: (int) number of best paths to be predicted
+
+    :return predictions: (List[str]) string transcriptions of the predictions
+    """
+
+    predictions = []
+
+    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf}, compile=False)
+
+    if isinstance(feature_inputs, np.ndarray):
+        inputs = [feature_inputs]
+    elif isinstance(feature_inputs, list):
+        inputs = []
+        for i, x in enumerate(inputs):
+            if isinstance(x, np.ndarray):
+                inputs.append(x)
+            else:
+                print('ignoring input number {} as it is not a numpy array'.format(i))
+    else:
+        raise TypeError('feature_inputs argument is not a numpy array or a list of numpy arrays')
+
+    for i, x in enumerate(inputs):
+        logits = model(tf.expand_dims(tf.cast(x, tf.float32), 0), training=False)
+        logits_time_major = tf.transpose(logits, (1, 0, 2))
+        decoded, _ = tf.nn.ctc_beam_search_decoder(logits_time_major,
+                                                   [tf.shape(logits_time_major)[0]],
+                                                   beam_width=beam_width,
+                                                   top_paths=top_paths)
+
+        dense_decoded = tf.sparse.to_dense(decoded[0], default_value=-1)
+
+        print("Prediction {}: {}".format(i,
+                                         "".join([FLAGS.n2c_map[int(c)] for c in dense_decoded[0, :] if int(c) != -1])))
+
+        predictions.append(dense_decoded)
+
+    return predictions
 
 if __name__ == '__main__':
     K.clear_session()
