@@ -109,5 +109,9 @@ class PREDICTION_FLAGS(FLAGS):
     }
 
     model = {
-        "path": "d:/!private/lord/git/speech_recognition_2/results/2019-0515-172359_conv[32-64](bn)_rnn[128](bn)_ff[64](bn)/model.h5",
+        "path": "d:/!private/lord/git/speech_recognition_2/results/model.h5",
     }
+
+    # prediction
+    beam_width = 256
+    top_paths = 5

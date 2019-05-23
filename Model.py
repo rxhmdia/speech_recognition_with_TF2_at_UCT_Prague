@@ -12,7 +12,7 @@ import tensorflow.keras.backend as K
 from tqdm import tqdm
 
 from DataPipeline import load_datasets
-from FLAGS import FLAGS
+from FLAGS import FLAGS, PREDICTION_FLAGS
 from utils import create_save_path, decay_value
 
 
@@ -320,7 +320,8 @@ def train_model(run_number):
             break
 
 
-def predict_from_saved_model(path_to_model, feature_inputs, beam_width=FLAGS.beam_width, top_paths=FLAGS.top_paths):
+def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTION_FLAGS.beam_width,
+                             top_paths=PREDICTION_FLAGS.top_paths):
     """ Load model from path_to_model, calculate logits from feature_input and decode outputs
     to produce prediction string
 
@@ -356,10 +357,11 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=FLAGS.bea
                                                    beam_width=beam_width,
                                                    top_paths=top_paths)
 
-        dense_decoded = tf.sparse.to_dense(decoded[0], default_value=-1)
+        dense_decoded = [tf.sparse.to_dense(d, default_value=-1) for d in decoded]
 
-        print("Prediction {}: {}".format(i,
-                                         "".join([FLAGS.n2c_map[int(c)] for c in dense_decoded[0, :] if int(c) != -1])))
+        for j, decoded_path in enumerate(dense_decoded):
+            print("Prediction {} | Path {}: {}".format(i, j, "".join([PREDICTION_FLAGS.n2c_map[int(c)]
+                                                                      for c in decoded_path[0, :] if int(c) != -1])))
 
         predictions.append(dense_decoded)
 
