@@ -164,11 +164,9 @@ def decode_best_output(labels, logits, label_length, logit_length):
     truth = K.ctc_label_dense_to_sparse(tf.cast(labels, tf.int32), label_length)
 
     cer = tf.edit_distance(decoded[0], truth, name="levenshtein_distance")
-    print(cer)
     cer = tf.boolean_mask(cer, tf.not_equal(cer, np.inf))  # remove inf values (where the length of labels == 0)
 
     mean_cer = tf.reduce_mean(cer)
-    print(mean_cer)
 
     return tf.sparse.to_dense(decoded[0], default_value=FLAGS.label_pad_val), mean_cer
 
