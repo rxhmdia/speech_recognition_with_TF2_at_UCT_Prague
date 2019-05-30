@@ -1,6 +1,4 @@
 import os
-import json
-from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -13,7 +11,7 @@ from tqdm import tqdm
 
 from DataPipeline import load_datasets
 from FLAGS import FLAGS, PREDICTION_FLAGS
-from utils import create_save_path, decay_value
+from utils import create_save_path, save_config, decay_value
 
 
 def _conv_output_shape(input_shape, filt_shape, filt_stride, padding="same"):
@@ -281,10 +279,8 @@ def train_model(run_number):
     if FLAGS.checkpoint_path:
         model.load_weights(FLAGS.checkpoint_path)
 
-    # save model config (FLAGS) to JSON file
-    with open(save_path + '/config.json', 'w') as f:
-        json.dump(
-            {key: value for key, value in FLAGS.__dict__.items() if not key.startswith('__') and not callable(key)}, f)
+    # save model FLAGS to save_path
+    save_config(save_path)
 
     # save model architecture image to save_path directory
     if FLAGS.save_architecture_image:

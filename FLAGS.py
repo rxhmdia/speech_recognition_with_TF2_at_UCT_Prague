@@ -15,6 +15,7 @@ class FLAGS:
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
     # load_dir = "g:/datasets/ORAL_08"
     save_dir = "./results/"
+    save_config_as = "FLAGS.py"
     checkpoint_path = None
 
     num_runs = 5

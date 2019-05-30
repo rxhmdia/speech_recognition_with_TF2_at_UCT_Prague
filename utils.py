@@ -1,4 +1,6 @@
 import os
+import json
+import shutil
 from datetime import datetime
 
 from FLAGS import FLAGS
@@ -30,6 +32,19 @@ def create_save_path(exist_ok=True):
 
     return save_path
 
+
+def save_config(save_path):
+    name, ext = os.path.splitext(FLAGS.save_config_as)
+    path_to_file = '{}/{}{}'.format(save_path, name, ext)
+    if ext == '.json':
+        with open(path_to_file, 'w') as f:
+            json.dump(
+                {key: value for key, value in FLAGS.__dict__.items()
+                 if not key.startswith('__') and not callable(key)}, f)
+    elif ext == '.py':
+        shutil.copy2('./FLAGS.py', path_to_file)
+    else:
+        raise FileNotFoundError("Extention of 'FLAGS.save_config_as' must be either .json or .py")
 
 def decay_value(base_value, decay_rate, decay_steps, step):
     """ decay base_value by decay_rate every decay_steps
