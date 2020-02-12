@@ -1,3 +1,4 @@
+import json
 import tensorflow as tf
 
 
@@ -10,24 +11,26 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
-    load_dir = "b:/!temp/PDTSC_Debug/"
-    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
-    # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord"
-    # load_dir = "g:/datasets/ORAL_08"
+    # load_dir = "b:/!temp/PDTSC_Debug/"
+    # load_dir = "g:/datasets/PDTSC_Debug/"
+    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/ORAL_08/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
 
     num_runs = 5
-    max_epochs = 50
+    max_epochs = 10
     batch_size_per_GPU = 8
 
-    #    num_data = 391216
-    num_train_data = int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
-    num_test_data = int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
-    num_features = 123
-    min_time = 100
-    max_time = 3000  # TODO: change back to 3000 when including PDTSC
+    with open(load_dir + "data_config.json", "r") as f:
+        dc = json.load(f)
+        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+        num_features = dc["num_features"]  # 123
+        min_time = dc["min_time"]  # 100
+        max_time = dc["max_time"]  # 3000
     buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
 
@@ -39,7 +42,7 @@ class FLAGS:
     label_pad_val = -1
 
     # MODEL
-    save_architecture_image = True
+    save_architecture_image = False
     show_shapes = True
 
     weight_init_mean = 0.0

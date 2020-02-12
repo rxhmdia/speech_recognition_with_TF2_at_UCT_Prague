@@ -12,6 +12,7 @@ from tqdm import tqdm
 from DataPipeline import load_datasets
 from FLAGS import FLAGS, PREDICTION_FLAGS
 from utils import create_save_path, save_config, decay_value
+from helpers import console_logger
 
 
 def _conv_output_shape(input_shape, filt_shape, filt_stride, padding="same"):
@@ -141,7 +142,7 @@ def early_stopping(model, cer, best_cer, epoch, best_epoch, save_path):
     return stop_training, best_cer, best_epoch
 
 
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def mean_ctc_loss(labels, logits, label_length, logit_length, name='ctc_loss'):
     loss = tf.nn.ctc_loss(labels, logits, label_length, logit_length,
                           logits_time_major=False,
@@ -169,7 +170,8 @@ def decode_best_output(labels, logits, label_length, logit_length):
     return tf.sparse.to_dense(decoded[0], default_value=FLAGS.label_pad_val), mean_cer
 
 
-def train_step(model, inputs, optimizer, time_reduce_rate):
+@tf.function(experimental_relax_shapes=True)
+def train_step(model, inputs, time_reduce_rate):
     x, y, size_x, size_y = inputs
 
     logit_length = tf.cast(tf.math.ceil(time_reduce_rate*tf.cast(size_x, tf.float32)), tf.int32)
@@ -177,9 +179,8 @@ def train_step(model, inputs, optimizer, time_reduce_rate):
         logits = model(x, training=True)
         mean_loss = mean_ctc_loss(y, logits, size_y, logit_length)
     gradients = tape.gradient(mean_loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    return mean_loss
+    return gradients, mean_loss
 
 
 def test_step(model, inputs, time_reduce_rate):
@@ -198,7 +199,7 @@ def test_step(model, inputs, time_reduce_rate):
     return mean_loss, decoded, mean_cer
 
 
-def train_fn(model, dataset, optimizer, num_batches, save_path, epoch):
+def train_fn(model, dataset, optimizer, loss, num_batches, epoch):
     """
     One epoch of training:
      - train 'model' on 'dataset' using 'optimizer'
@@ -206,8 +207,6 @@ def train_fn(model, dataset, optimizer, num_batches, save_path, epoch):
      - write total_loss to TB summary to 'save_path/train'
     """
     batch_no = 0
-    # workaround for multiple runs of tf.function decorated function
-    tf_train_step = tf.function(train_step)
 
     # decaying learning rate
     if FLAGS.lr_decay:
@@ -216,101 +215,117 @@ def train_fn(model, dataset, optimizer, num_batches, save_path, epoch):
         K.set_value(optimizer.lr, new_lr)
 
     _, _, time_reduce_rate, _ = _conv_reduce_rate(FLAGS.max_time, FLAGS.num_features)
-    train_loss = tf.keras.metrics.Mean(name='train_loss', dtype=tf.float32)
     with tqdm(range(num_batches), unit="batch") as timer:
         for inputs in dataset:
-            mean_loss = tf_train_step(model, inputs, optimizer, time_reduce_rate)
-            train_loss.update_state(mean_loss)
+            gradients, mean_loss = train_step(model, inputs, time_reduce_rate)
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+            loss.update_state(mean_loss)
             timer.update(1)
             if tf.equal(batch_no % 100, 0):
                 print("Batch {} | Loss {}".format(batch_no, mean_loss))
             batch_no += 1
-    mean_train_loss = train_loss.result()
-    print("Mean Loss: {}".format(mean_train_loss))
-    tf.summary.scalar('mean_loss', mean_train_loss, step=epoch, description='mean train loss')
-    train_loss.reset_states()
+    mean_loss = loss.result()
+    print("Mean Loss: {}".format(mean_loss))
+    tf.summary.scalar('mean_loss', mean_loss, step=epoch, description='mean train loss')
+    loss.reset_states()
 
-    return mean_train_loss
+    return mean_loss
 
 
-def test_fn(model, dataset, num_batches, epoch):
+def test_fn(model, dataset, loss, cer, num_batches, epoch):
     batch_no = 0
     _, _, time_reduce_rate, _ = _conv_reduce_rate(FLAGS.max_time, FLAGS.num_features)
-    test_loss = tf.keras.metrics.Mean(name='test_loss', dtype=tf.float32)
-    test_cer = tf.keras.metrics.Mean(name='test_cer', dtype=tf.float32)
     with tqdm(range(num_batches), unit="batch") as timer:
         for inputs in dataset:
             mean_loss, decoded, mean_cer = test_step(model, inputs, time_reduce_rate)
-            test_loss.update_state(mean_loss)
-            test_cer.update_state(mean_cer)
+            loss.update_state(mean_loss)
+            cer.update_state(mean_cer)
             timer.update(1)
             if tf.equal(batch_no % 100, 0):
                 print("\nBatch {} | Loss {} | CER {}".format(batch_no, mean_loss, mean_cer))
                 print("Prediction: {}".format("".join([FLAGS.n2c_map[int(c)] for c in decoded[0, :] if int(c) != -1])))
                 print("Truth: {}".format("".join([FLAGS.n2c_map[int(c)] for c in inputs[1][0, :] if int(c) != -1])))
             batch_no += 1
-    mean_test_loss = test_loss.result()
-    mean_test_cer = test_cer.result()
-    print("Mean Loss: {}".format(mean_test_loss))
-    print("Mean CER: {}".format(mean_test_cer))
-    tf.summary.scalar('mean_loss', mean_test_loss, step=epoch, description='mean test loss')
-    tf.summary.scalar('mean_cer', mean_test_cer, step=epoch, description='mean test character error rate')
-    test_loss.reset_states()
-    test_cer.reset_states()
+    mean_loss = loss.result()
+    mean_cer = cer.result()
+    print("Mean Loss: {}".format(mean_loss))
+    print("Mean CER: {}".format(mean_cer))
+    tf.summary.scalar('mean_loss', mean_loss, step=epoch, description='mean test loss')
+    tf.summary.scalar('mean_cer', mean_cer, step=epoch, description='mean test character error rate')
+    loss.reset_states()
+    cer.reset_states()
 
-    return mean_test_loss, mean_test_cer
+    return mean_loss, mean_cer
 
 
-def train_model(run_number):
+def train_model(run_number, logger_level="WARNING"):
+    logger = console_logger(__name__, logger_level)
+
+    logger.info("Clearning Keras session.")
     K.clear_session()
     save_path = create_save_path()
+    logger.debug(f"New save path: {save_path}")
 
     # __INPUT PIPELINE__ #
+    logger.info("Loading datasets.")
     ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir)
+    logger.debug(f"num_train_batches: {num_train_batches}, num_test_batches: {num_test_batches}")
 
     # __MODEL__ #
+    logger.info("Initializing kernel.")
     kernel_initializer = tf.initializers.TruncatedNormal(mean=FLAGS.weight_init_mean,
                                                          stddev=FLAGS.weight_init_stddev)
+    logger.info("Building model")
     model = build_model(kernel_initializer)
     #        print('Trainable params: {}'.format(model.count_params()))
-    print(model.summary())
+    logger.info(model.summary())
 
     # Load model weights from checkpoint if checkpoint_path is provided
     if FLAGS.checkpoint_path:
+        logger.info("Loading model weights from checkpoint.")
         model.load_weights(FLAGS.checkpoint_path)
 
     # save model FLAGS to save_path
+    logger.info(f"Saving flags (settings) to {save_path}")
     save_config(save_path)
 
     # save model architecture image to save_path directory
     if FLAGS.save_architecture_image:
+        logger.info(f"Saving model architecture image to {save_path}")
         tf.keras.utils.plot_model(model, os.path.join(save_path, 'architecture.png'), show_shapes=FLAGS.show_shapes)
 
     # __LOGGING__ #
+    logger.info(f"Initializing summyary writers.")
     summary_writer_train = tf.summary.create_file_writer(save_path + '/train', name='sw-train')
     summary_writer_test = tf.summary.create_file_writer(save_path + '/test', name='sw-test')
 
     # __TRAINING__ #
+    logger.info(f"Initializing variables, optimizer and metrics.")
     best_cer = 100.0
     best_epoch = -1
     optimizer = tf.keras.optimizers.Adam(lr=FLAGS.lr, epsilon=FLAGS.epsilon, amsgrad=FLAGS.amsgrad)
+    train_loss = tf.keras.metrics.Mean(name='train_loss', dtype=tf.float32)
+    test_loss = tf.keras.metrics.Mean(name='test_loss', dtype=tf.float32)
+    test_cer = tf.keras.metrics.Mean(name='test_cer', dtype=tf.float32)
 
     for epoch in range(FLAGS.max_epochs):
-        print('_______| Run {} | Epoch {} |_______'.format(run_number, epoch))
+        logger.log(35, f'_______| Run {run_number} | Epoch {epoch} |_______')
 
         # TRAINING DATA
         with summary_writer_train.as_default():
-            train_fn(model, ds_train, optimizer, num_train_batches, save_path, epoch)
+            logger.info(f"Training model.")
+            train_fn(model, ds_train, optimizer, train_loss, num_train_batches, epoch)
 
         # TESTING DATA
         with summary_writer_test.as_default():
-            _, test_cer = test_fn(model, ds_test, num_test_batches, epoch)
+            logger.info(f"Testing model.")
+            _, test_mean_cer = test_fn(model, ds_test, test_loss, test_cer, num_test_batches, epoch)
 
         # EARLY STOPPING AND KEEPING THE BEST MODEL
-        stop_training, best_cer, best_epoch = early_stopping(model, test_cer, best_cer, epoch, best_epoch, save_path)
-        print('| Best CER {} | Best epoch {} |'.format(best_cer, best_epoch))
+        stop_training, best_cer, best_epoch = early_stopping(model, test_mean_cer, best_cer, epoch, best_epoch, save_path)
+        logger.log(35, f'| Best CER {best_cer} | Best epoch {best_epoch} |')
         if stop_training:
-            print('Model stopped early at epoch {}'.format(epoch))
+            logger.log(35, f'Model stopped early at epoch {epoch}')
             break
 
 
@@ -360,6 +375,7 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
         predictions.append(dense_decoded)
 
     return predictions
+
 
 if __name__ == '__main__':
     K.clear_session()
