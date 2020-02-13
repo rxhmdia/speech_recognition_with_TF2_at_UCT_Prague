@@ -13,8 +13,8 @@ class FLAGS:
 
     # load_dir = "b:/!temp/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
-    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
-    # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/ORAL_08/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
@@ -56,29 +56,29 @@ class FLAGS:
     }
     conv_params = {
         'use': True,
-        'channels': [32, 64],
-        'kernels': [(16, 32), (8, 16)],
-        'strides': [(2, 4), (2, 4)],
-        'dilation_rates': [(1, 1), (1, 1)],
+        'channels': [32, 64, 128],
+        'kernels': [(16, 32), (8, 16), (4, 8)],
+        'strides': [(2, 4), (2, 4), (1, 1)],
+        'dilation_rates': [(1, 1), (1, 1), (1, 1)],
         'padding': 'same',
         'data_format': 'channels_last',
         'batch_norm': True,
-        'drop_rates': [0., 0.],
+        'drop_rates': [0., 0., 0.],
     }
     bn_momentum = 0.9
     relu_clip_val = 20
     relu_alpha = 0.2
     rnn_params = {
         'use': True,
-        'num_units': [128],
+        'num_units': [128, 128],
         'batch_norm': True,
-        'drop_rates': [0.],
+        'drop_rates': [0., 0.],
     }
     ff_params = {
         'use': True,
-        'num_units': [64],
+        'num_units': [128, 64],
         'batch_norm': True,
-        'drop_rates': [0.],
+        'drop_rates': [0., 0.],
     }
 
     # Optimizer
