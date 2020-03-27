@@ -3,7 +3,15 @@ import os
 import numpy as np
 import tensorflow as tf
 
+from helpers import console_logger
 from FLAGS import FLAGS
+
+LOGGER = console_logger('tensorflow', "DEBUG")
+_AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+# TODO:
+#  SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
+#  Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
 
 
 # noinspection DuplicatedCode
@@ -42,7 +50,7 @@ class SpecAug:
         return sample
 
     def mask(self, x):
-        return tf.map_fn(self._mask_sample, x, parallel_iterations=tf.data.experimental.AUTOTUNE)
+        return tf.map_fn(self._mask_sample, x, parallel_iterations=_AUTOTUNE)
 
 
 def _parse_proto(example_proto):
@@ -90,11 +98,18 @@ def _bucket_and_batch(ds, bucket_boundaries):
     return ds
 
 
-def load_datasets(load_dir):
+def load_datasets(load_dir, data_aug=False, bandwidth_time=(20, 40), bandwidth_freq=(19, 20)):
     path_gen = os.walk(load_dir)
 
     ds_train = None
     ds_test = None
+
+    if data_aug:
+        LOGGER.info("Initializing Data Augmentation for time and freq.")
+        sa_time = SpecAug(axis=0, bandwidth_range=bandwidth_time)
+        sa_freq = SpecAug(axis=1, bandwidth_range=bandwidth_freq)
+        LOGGER.debug(f"sa_time.bandwidth_range: {sa_time.bandwidth_range} |"
+                     f"sa_freq.bandwidth_range: {sa_freq.bandwidth_range}")
 
     # load datasets from .tfrecord files in test and train folders
     for path, subfolders, files in path_gen:
@@ -109,16 +124,16 @@ def load_datasets(load_dir):
                             reshuffle_each_iteration=False)
             ds_train = ds.take(FLAGS.num_train_data)
             ds_test = ds.skip(FLAGS.num_train_data)
-            print('joined dataset loaded from {} and '
-                  'split into ds_train ({}) and ds_test ({})'.format(path, FLAGS.num_train_data, 'rest'))
+            LOGGER.info(f"joined dataset loaded from {path} and split into ds_train ({FLAGS.num_train_data}) "
+                        f"and ds_test (rest)")
             break
         if folder_name == 'test':
             ds_test = _read_tfrecords(fullpaths, block_length=FLAGS.num_test_data)
-            print('test dataset loaded from {}'.format(path))
+            LOGGER.info(f'test dataset loaded from {path}')
         elif folder_name == 'train':
             # don't shuffle if using shards, because bucketting doesn't work well with shards
             ds_train = _read_tfrecords(fullpaths, block_length=FLAGS.num_train_data)
-            print('train dataset loaded from {}'.format(path))
+            LOGGER.info(f'train dataset loaded from {path}')
         else:
             continue
 
@@ -133,23 +148,28 @@ def load_datasets(load_dir):
                                  bucket_boundaries)  # convert ds into batches of simmilar length features (bucketed)
     # TODO: perform DataAugmentation
     #  AdditiveNoise?
-    #  TimeMasking
-    #  FrequencyMasking
+    #  TimeMasking -- in progress
+    #  FrequencyMasking -- in progress
+    if data_aug:
+        ds_train = (ds_train.map(lambda x, y, sx, sy: (sa_time.mask(x), y, sx, sy), num_parallel_calls=_AUTOTUNE)   # time masking
+                            .map(lambda x, y, sx, sy: (sa_freq.mask(x), y, sx, sy), num_parallel_calls=_AUTOTUNE))  # frequency masking
     ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
                                 reshuffle_each_iteration=True)
-    ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE)
+    ds_train = ds_train.prefetch(_AUTOTUNE)
 
     # test dataset
     ds_test = _bucket_and_batch(ds_test, bucket_boundaries)
-    ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
+    ds_test = ds_test.prefetch(_AUTOTUNE)
 
     return ds_train, ds_test, num_train_batches, num_test_batches
 
 
 if __name__ == '__main__':
-    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir)
+    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir, data_aug=False)
 
     if ds_train:
+        for sample in ds_train:
+            print(sample[0].shape)
         print(ds_train.output_shapes)
 
     if ds_test:

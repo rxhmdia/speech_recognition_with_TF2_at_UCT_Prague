@@ -11,11 +11,11 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
-    # load_dir = "b:/!temp/PDTSC_Debug/"
+    load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
-    load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
