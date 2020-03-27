@@ -94,6 +94,10 @@ def load_datasets(load_dir):
                                  bucket_boundaries)  # convert ds into batches of simmilar length features (bucketed)
     ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
                                 reshuffle_each_iteration=True)
+    # TODO: perform DataAugmentation
+    #  AdditiveNoise?
+    #  TimeMasking
+    #  FrequencyMasking
     ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE)
 
     # test dataset
