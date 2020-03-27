@@ -6,6 +6,45 @@ import tensorflow as tf
 from FLAGS import FLAGS
 
 
+# noinspection DuplicatedCode
+class SpecAug:
+
+    def __init__(self, axis=0, num_instances=1, bandwidth_range=(5, 20)):
+        """ Tensorflow data pipeline implementation of SpecAug time and frequency masking
+
+        :param axis (int): which axis will be masked (0 ... time, 1 ... frequency)
+        :param num_instances (int): number of masking instances in one sample (>1 not supported yet)
+        :param bandwidth_range (Tuple[int]): minimum and maximum length of the masked area
+        """
+        self.axis = axis if axis in (0, 1) else 0
+        self.num_instances = num_instances
+        self.bandwidth_range = bandwidth_range
+
+    def _mask_sample(self, sample):
+        if self.axis == 1:
+            sample = tf.transpose(sample, (1, 0))
+
+        for i in range(self.num_instances):
+            nrows, _ = sample.shape
+            bandwidth = tf.random.uniform([], self.bandwidth_range[0], self.bandwidth_range[1], dtype=tf.int32)
+            tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
+            tm_ub = tm_lb + bandwidth  # upper bounds
+
+            mask = tf.concat((tf.ones((tm_lb,), dtype=tf.bool),
+                              tf.zeros((bandwidth,), dtype=tf.bool),
+                              tf.ones((nrows - tm_ub,), dtype=tf.bool)), axis=0)
+
+            sample = tf.boolean_mask(sample, mask)
+
+        if self.axis == 1:
+            sample = tf.transpose(sample, (1, 0))
+
+        return sample
+
+    def mask(self, x):
+        return tf.map_fn(self._mask_sample, x, parallel_iterations=tf.data.experimental.AUTOTUNE)
+
+
 def _parse_proto(example_proto):
     features = {
         'x': tf.io.FixedLenSequenceFeature([FLAGS.num_features], tf.float32, allow_missing=True),
@@ -92,12 +131,12 @@ def load_datasets(load_dir):
     # train dataset
     ds_train = _bucket_and_batch(ds_train,
                                  bucket_boundaries)  # convert ds into batches of simmilar length features (bucketed)
-    ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
-                                reshuffle_each_iteration=True)
     # TODO: perform DataAugmentation
     #  AdditiveNoise?
     #  TimeMasking
     #  FrequencyMasking
+    ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
+                                reshuffle_each_iteration=True)
     ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE)
 
     # test dataset

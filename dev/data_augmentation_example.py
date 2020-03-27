@@ -8,7 +8,7 @@ _NUM_SAMPLES = 2
 _DATA_SHAPE = (10, 5)  # time, num_features
 _BATCH_SIZE = 1
 _NUM_INSTANCES = 1  # > 1 not supported
-_BANDWIDTH = 2
+_BANDWIDTH_RANGE = (2, 5)
 _AXIS = 1
 
 LOGGER = console_logger('tensorflow', "DEBUG")
@@ -38,13 +38,8 @@ class ArtificialDataset(tf.data.Dataset):
         )
 
 
-# TODO: make into classes
-#  _make_sample will be mother class
-#  _timeaug will be one subclass
-#  _freqaug will be second sublass
-
-
-def _mask_sample(sample, axis=_AXIS, num_instances=_NUM_INSTANCES, bandwidth=_BANDWIDTH):
+# noinspection DuplicatedCode
+def _mask_sample(sample, axis=_AXIS, num_instances=_NUM_INSTANCES, bandwidth_range=_BANDWIDTH_RANGE):
     # tm_lb = np.random.randint(0, sample.shape[0]-bandwidth)
     # tm_ub = tm_lb + bandwidth
 
@@ -53,6 +48,7 @@ def _mask_sample(sample, axis=_AXIS, num_instances=_NUM_INSTANCES, bandwidth=_BA
 
     for i in range(num_instances):
         nrows, _ = sample.shape
+        bandwidth = tf.random.uniform([], bandwidth_range[0], bandwidth_range[1], dtype=tf.int32)
         tm_lb = tf.random.uniform([], 0, nrows-bandwidth, dtype=tf.int32)  # lower bounds
         tm_ub = tm_lb + bandwidth  # upper bounds
         # LOGGER.info(f"tm_lb: {tm_lb}, tm_ub: {tm_ub}")
@@ -81,6 +77,7 @@ def mask_freq(x):
 
 
 if __name__ == '__main__':
+
     ds = (ArtificialDataset()
           .batch(_BATCH_SIZE)
           .map(mask_time, num_parallel_calls=tf.data.experimental.AUTOTUNE)
