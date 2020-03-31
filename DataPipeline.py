@@ -34,7 +34,7 @@ class SpecAug:
         self._max_sx = None
 
     @tf.function(experimental_relax_shapes=True)
-    def _mask_sample_v2(self, sample, sx_max=None):
+    def _mask_sample(self, sample, sx_max=None):
         x, y, sx, sy = sample
         stime, sfreq = (sx, x.shape[1])
 
@@ -76,43 +76,9 @@ class SpecAug:
 
         return x, y, sx, sy
 
-    @tf.function
-    def _mask_sample(self, sample, sx_max=None):
-        x, y, sx, sy = sample
-        if self.axis == 0:
-            nrows = sx
-            nrows_max = sx_max
-        elif self.axis == 1:
-            x = tf.transpose(x, (1, 0))
-            nrows = x.shape[0]
-            nrows_max = nrows
-        else:
-            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
-
-        bandwidth = self.bandwidth
-        tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
-        tm_ub = tm_lb + bandwidth  # upper bounds
-
-        mask_lb = tf.concat((tf.ones([tm_lb, ], dtype=tf.bool), tf.zeros([nrows-tm_lb, ], dtype=tf.bool)), axis=0)
-        mask_ub = tf.concat((tf.zeros([tm_ub, ], dtype=tf.bool), tf.ones([nrows-tm_ub], dtype=tf.bool)), axis=0)
-
-        # build new x so that bandwidth area is replaced by zeros
-        tf.print(bandwidth + nrows_max - nrows)
-        x = tf.concat((tf.boolean_mask(x, mask_lb),
-                       tf.zeros([bandwidth + nrows_max - nrows, x.shape[1] if self.axis == 0 else sx]),
-                       tf.boolean_mask(x, mask_ub)), axis=0)
-
-        if self.axis == 0:
-            x = tf.ensure_shape(x, (None, FLAGS.num_features))
-        if self.axis == 1:
-            x = tf.transpose(x, (1, 0))
-            x = tf.ensure_shape(x, (None, FLAGS.num_features))
-
-        return x, y, sx, sy
-
     @tf.function(experimental_relax_shapes=True)
     def mask(self, x, y, sx, sy):
-        return tf.map_fn(lambda sample: self._mask_sample_v2(sample, tf.reduce_max(sx)),
+        return tf.map_fn(lambda sample: self._mask_sample(sample, tf.reduce_max(sx)),
                          (x, y, sx, sy),
                          parallel_iterations=4)
 
