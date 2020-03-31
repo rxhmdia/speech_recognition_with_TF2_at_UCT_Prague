@@ -29,6 +29,7 @@ class SpecAug:
         self.bandwidth = bandwidth
         self._max_sx = None
 
+    @tf.function
     def _mask_sample(self, sample, sx_max=None):
         x, y, sx, sy = sample
         if self.axis == 0:
@@ -110,7 +111,10 @@ def _bucket_and_batch(ds, bucket_boundaries):
     return ds
 
 
-def load_datasets(load_dir, data_aug=False, bandwidth_time=30, bandwidth_freq=20):
+def load_datasets(load_dir,
+                  data_aug=FLAGS.data_aug['use'],
+                  bandwidth_time=FLAGS.data_aug['bandwidth_time'],
+                  bandwidth_freq=FLAGS.data_aug['bandwidth_freq']):
     path_gen = os.walk(load_dir)
 
     ds_train = None

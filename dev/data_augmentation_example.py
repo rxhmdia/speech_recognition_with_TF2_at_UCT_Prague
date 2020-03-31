@@ -14,6 +14,8 @@ _AXIS = 1
 LOGGER = console_logger('tensorflow', "DEBUG")
 
 # TODO:
+#
+# DONE:
 #  - TimeMasking
 #  - FrequencyMasking
 

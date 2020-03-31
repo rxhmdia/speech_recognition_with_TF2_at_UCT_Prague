@@ -89,6 +89,14 @@ class FLAGS:
     epsilon = 0.1
     amsgrad = True
 
+    # Data Augmentation (in pipeline)
+    data_aug = {
+        'use': True,
+        'bandwidth_time': 1,
+        'bandwidth_freq': 10,
+    }
+
+
     # Decoder
     beam_width = 256
     top_paths = 1  # > 1 not implemented
