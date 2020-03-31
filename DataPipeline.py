@@ -27,14 +27,23 @@ class SpecAug:
         self.axis = axis if axis in (0, 1) else 0
         self.num_instances = num_instances
         self.bandwidth_range = bandwidth_range
+        self._max_sx = None
 
-    def _mask_sample(self, sample):
-        if self.axis == 1:
-            sample = tf.transpose(sample, (1, 0))
+    def _mask_sample(self, sample, sx_max=None):
+        x, y, sx, sy = sample
+        if self.axis == 0:
+            nrows = sx
+            nrows_max = sx_max
+        elif self.axis == 1:
+            x = tf.transpose(x, (1, 0))
+            nrows = x.shape[0]
+            nrows_max = nrows
+        else:
+            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
 
         for i in range(self.num_instances):
-            nrows, _ = sample.shape
             bandwidth = tf.random.uniform([], self.bandwidth_range[0], self.bandwidth_range[1], dtype=tf.int32)
+            bandwidth = bandwidth - nrows_max + nrows  # so that shapes match!!!
             tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
             tm_ub = tm_lb + bandwidth  # upper bounds
 
@@ -42,15 +51,20 @@ class SpecAug:
                               tf.zeros((bandwidth,), dtype=tf.bool),
                               tf.ones((nrows - tm_ub,), dtype=tf.bool)), axis=0)
 
-            sample = tf.boolean_mask(sample, mask)
+            x = tf.boolean_mask(x, mask)
 
+        if self.axis == 0:
+            x = tf.ensure_shape(x, (None, FLAGS.num_features))
         if self.axis == 1:
-            sample = tf.transpose(sample, (1, 0))
+            x = tf.transpose(x, (1, 0))
+            x = tf.ensure_shape(x, (None, FLAGS.num_features - self.bandwidth_range[0]))
 
-        return sample
+        return x, y, sx, sy
 
-    def mask(self, x):
-        return tf.map_fn(self._mask_sample, x, parallel_iterations=_AUTOTUNE)
+    def mask(self, x, y, sx, sy):
+        return tf.map_fn(lambda sample: self._mask_sample(sample, tf.reduce_max(sx)),
+                         (x, y, sx, sy),
+                         parallel_iterations=_AUTOTUNE)
 
 
 def _parse_proto(example_proto):
@@ -98,7 +112,7 @@ def _bucket_and_batch(ds, bucket_boundaries):
     return ds
 
 
-def load_datasets(load_dir, data_aug=False, bandwidth_time=(20, 40), bandwidth_freq=(19, 20)):
+def load_datasets(load_dir, data_aug=False, bandwidth_time=(19, 20), bandwidth_freq=(19, 20)):
     path_gen = os.walk(load_dir)
 
     ds_train = None
@@ -151,8 +165,8 @@ def load_datasets(load_dir, data_aug=False, bandwidth_time=(20, 40), bandwidth_f
     #  TimeMasking -- in progress
     #  FrequencyMasking -- in progress
     if data_aug:
-        ds_train = (ds_train.map(lambda x, y, sx, sy: (sa_time.mask(x), y, sx, sy), num_parallel_calls=_AUTOTUNE)   # time masking
-                            .map(lambda x, y, sx, sy: (sa_freq.mask(x), y, sx, sy), num_parallel_calls=_AUTOTUNE))  # frequency masking
+        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE))  # frequency masking
     ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
                                 reshuffle_each_iteration=True)
     ds_train = ds_train.prefetch(_AUTOTUNE)
@@ -165,7 +179,7 @@ def load_datasets(load_dir, data_aug=False, bandwidth_time=(20, 40), bandwidth_f
 
 
 if __name__ == '__main__':
-    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir, data_aug=False)
+    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir, data_aug=True)
 
     if ds_train:
         for sample in ds_train:
