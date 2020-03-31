@@ -17,16 +17,16 @@ _AUTOTUNE = tf.data.experimental.AUTOTUNE
 # noinspection DuplicatedCode
 class SpecAug:
 
-    def __init__(self, axis=0, num_instances=1, bandwidth_range=(5, 20)):
+    def __init__(self, axis=0, num_instances=1, bandwidth=20):
         """ Tensorflow data pipeline implementation of SpecAug time and frequency masking
 
         :param axis (int): which axis will be masked (0 ... time, 1 ... frequency)
         :param num_instances (int): number of masking instances in one sample (>1 not supported yet)
-        :param bandwidth_range (Tuple[int]): minimum and maximum length of the masked area
+        :param bandwidth (int): length of the masked area
         """
         self.axis = axis if axis in (0, 1) else 0
         self.num_instances = num_instances
-        self.bandwidth_range = bandwidth_range
+        self.bandwidth = bandwidth
         self._max_sx = None
 
     def _mask_sample(self, sample, sx_max=None):
@@ -42,8 +42,7 @@ class SpecAug:
             raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
 
         for i in range(self.num_instances):
-            bandwidth = tf.random.uniform([], self.bandwidth_range[0], self.bandwidth_range[1], dtype=tf.int32)
-            bandwidth = bandwidth - nrows_max + nrows  # so that shapes match!!!
+            bandwidth = self.bandwidth - nrows_max + nrows  # so that shapes match!!!
             tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
             tm_ub = tm_lb + bandwidth  # upper bounds
 
@@ -57,7 +56,7 @@ class SpecAug:
             x = tf.ensure_shape(x, (None, FLAGS.num_features))
         if self.axis == 1:
             x = tf.transpose(x, (1, 0))
-            x = tf.ensure_shape(x, (None, FLAGS.num_features - self.bandwidth_range[0]))
+            x = tf.ensure_shape(x, (None, FLAGS.num_features - self.bandwidth))
 
         return x, y, sx, sy
 
@@ -112,7 +111,7 @@ def _bucket_and_batch(ds, bucket_boundaries):
     return ds
 
 
-def load_datasets(load_dir, data_aug=False, bandwidth_time=(19, 20), bandwidth_freq=(19, 20)):
+def load_datasets(load_dir, data_aug=False, bandwidth_time=30, bandwidth_freq=20):
     path_gen = os.walk(load_dir)
 
     ds_train = None
@@ -120,10 +119,10 @@ def load_datasets(load_dir, data_aug=False, bandwidth_time=(19, 20), bandwidth_f
 
     if data_aug:
         LOGGER.info("Initializing Data Augmentation for time and freq.")
-        sa_time = SpecAug(axis=0, bandwidth_range=bandwidth_time)
-        sa_freq = SpecAug(axis=1, bandwidth_range=bandwidth_freq)
-        LOGGER.debug(f"sa_time.bandwidth_range: {sa_time.bandwidth_range} |"
-                     f"sa_freq.bandwidth_range: {sa_freq.bandwidth_range}")
+        sa_time = SpecAug(axis=0, bandwidth=bandwidth_time)
+        sa_freq = SpecAug(axis=1, bandwidth=bandwidth_freq)
+        LOGGER.debug(f"sa_time.bandwidth: {sa_time.bandwidth} |"
+                     f"sa_freq.bandwidth: {sa_freq.bandwidth}")
 
     # load datasets from .tfrecord files in test and train folders
     for path, subfolders, files in path_gen:
