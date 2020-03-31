@@ -91,9 +91,9 @@ class FLAGS:
 
     # Data Augmentation (in pipeline)
     data_aug = {
-        'use': True,
-        'bandwidth_time': 1,
-        'bandwidth_freq': 10,
+        'mode': "0x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'bandwidth_time': 30,
+        'bandwidth_freq': 20,
     }
 
 

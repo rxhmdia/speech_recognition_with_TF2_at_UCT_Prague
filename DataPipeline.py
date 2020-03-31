@@ -9,12 +9,16 @@ from FLAGS import FLAGS
 LOGGER = console_logger('tensorflow', "DEBUG")
 _AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-# TODO:
-#  Ensure resulting frequency shape is the same before and after masking? (pad with zeros instead of removing)
-# DONE:
-#   SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
-#   Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
 
+# TODO:
+#  AdditiveNoise?
+# DONE:
+#  SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
+#  Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
+#  Ensure resulting frequency shape is the same before and after masking? (pad with zeros instead of removing)
+#  TimeMasking
+#  FrequencyMasking
+#  multiple instances of SpecAug (2x TimeMasking, 2x TimeMasking)
 
 # noinspection DuplicatedCode
 class SpecAug:
@@ -29,6 +33,49 @@ class SpecAug:
         self.bandwidth = bandwidth
         self._max_sx = None
 
+    @tf.function(experimental_relax_shapes=True)
+    def _mask_sample_v2(self, sample, sx_max=None):
+        x, y, sx, sy = sample
+        stime, sfreq = (sx, x.shape[1])
+
+        if self.axis == 0:
+            full_len = stime
+        elif self.axis == 1:
+            full_len = sfreq
+        else:
+            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
+
+        # generate position of masking
+        bandwidth = self.bandwidth
+        tm_lb = tf.random.uniform([], 0, full_len - bandwidth, dtype=tf.int32)  # lower bounds
+        tm_ub = tm_lb + bandwidth  # upper bounds
+
+        # generate lower bound and upper bound masks
+        mask_lb = tf.concat((tf.ones([tm_lb, ], dtype=tf.bool), tf.zeros([full_len - tm_lb, ], dtype=tf.bool)), axis=0)
+        mask_ub = tf.concat((tf.zeros([tm_ub, ], dtype=tf.bool), tf.ones([full_len - tm_ub], dtype=tf.bool)), axis=0)
+
+        # get value for padding batch to same time length
+        padding = sx_max - stime
+
+        if self.axis == 0:
+            # TIME MASKING
+            x = tf.concat((tf.boolean_mask(x, mask_lb, axis=0),
+                           tf.zeros([bandwidth + padding, sfreq]),
+                           tf.boolean_mask(x, mask_ub, axis=0)), axis=0)
+        elif self.axis == 1:
+            # FREQUENCY MASKING
+            # x = tf.pad(x, [[0, padding], [0, 0]])
+            x = tf.concat((tf.boolean_mask(x, mask_lb, axis=1),
+                           tf.zeros([sx_max, bandwidth]),
+                           tf.boolean_mask(x, mask_ub, axis=1)), axis=1)
+        else:
+            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
+
+        # sx = sx + padding
+        x = tf.ensure_shape(x, (None, sfreq))
+
+        return x, y, sx, sy
+
     @tf.function
     def _mask_sample(self, sample, sx_max=None):
         x, y, sx, sy = sample
@@ -42,28 +89,32 @@ class SpecAug:
         else:
             raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
 
-        bandwidth = self.bandwidth - nrows_max + nrows  # so that shapes after masking match!!!
+        bandwidth = self.bandwidth
         tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
         tm_ub = tm_lb + bandwidth  # upper bounds
 
-        mask = tf.concat((tf.ones((tm_lb,), dtype=tf.bool),
-                          tf.zeros((bandwidth,), dtype=tf.bool),
-                          tf.ones((nrows - tm_ub,), dtype=tf.bool)), axis=0)
+        mask_lb = tf.concat((tf.ones([tm_lb, ], dtype=tf.bool), tf.zeros([nrows-tm_lb, ], dtype=tf.bool)), axis=0)
+        mask_ub = tf.concat((tf.zeros([tm_ub, ], dtype=tf.bool), tf.ones([nrows-tm_ub], dtype=tf.bool)), axis=0)
 
-        x = tf.boolean_mask(x, mask)
+        # build new x so that bandwidth area is replaced by zeros
+        tf.print(bandwidth + nrows_max - nrows)
+        x = tf.concat((tf.boolean_mask(x, mask_lb),
+                       tf.zeros([bandwidth + nrows_max - nrows, x.shape[1] if self.axis == 0 else sx]),
+                       tf.boolean_mask(x, mask_ub)), axis=0)
 
         if self.axis == 0:
             x = tf.ensure_shape(x, (None, FLAGS.num_features))
         if self.axis == 1:
             x = tf.transpose(x, (1, 0))
-            x = tf.ensure_shape(x, (None, FLAGS.num_features - self.bandwidth))
+            x = tf.ensure_shape(x, (None, FLAGS.num_features))
 
         return x, y, sx, sy
 
+    @tf.function(experimental_relax_shapes=True)
     def mask(self, x, y, sx, sy):
-        return tf.map_fn(lambda sample: self._mask_sample(sample, tf.reduce_max(sx)),
+        return tf.map_fn(lambda sample: self._mask_sample_v2(sample, tf.reduce_max(sx)),
                          (x, y, sx, sy),
-                         parallel_iterations=_AUTOTUNE)
+                         parallel_iterations=4)
 
 
 def _parse_proto(example_proto):
@@ -111,8 +162,9 @@ def _bucket_and_batch(ds, bucket_boundaries):
     return ds
 
 
+# noinspection PyShadowingNames
 def load_datasets(load_dir,
-                  data_aug=FLAGS.data_aug['use'],
+                  data_aug=FLAGS.data_aug['mode'],
                   bandwidth_time=FLAGS.data_aug['bandwidth_time'],
                   bandwidth_freq=FLAGS.data_aug['bandwidth_freq']):
     path_gen = os.walk(load_dir)
@@ -120,12 +172,16 @@ def load_datasets(load_dir,
     ds_train = None
     ds_test = None
 
-    if data_aug:
+    if '1x' in data_aug or '2x' in data_aug:
         LOGGER.info("Initializing Data Augmentation for time and freq.")
         sa_time = SpecAug(axis=0, bandwidth=bandwidth_time)
         sa_freq = SpecAug(axis=1, bandwidth=bandwidth_freq)
         LOGGER.debug(f"sa_time.bandwidth: {sa_time.bandwidth} |"
                      f"sa_freq.bandwidth: {sa_freq.bandwidth}")
+    else:
+        LOGGER.info("Skipping Pipeline Data Augmentation.")
+        sa_time = None
+        sa_freq = None
 
     # load datasets from .tfrecord files in test and train folders
     for path, subfolders, files in path_gen:
@@ -162,13 +218,17 @@ def load_datasets(load_dir,
     # train dataset
     ds_train = _bucket_and_batch(ds_train,
                                  bucket_boundaries)  # convert ds into batches of simmilar length features (bucketed)
-    # TODO: perform DataAugmentation
-    #  AdditiveNoise?
-    #  TimeMasking -- in progress
-    #  FrequencyMasking -- in progress
-    if data_aug:
-        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking
+    # DATA AUGMENTATION
+    if '2x' in data_aug:
+        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking 1
+                            .map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking 2
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE)   # frequency masking 1
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE))  # frequency masking 2
+    elif '1x' in data_aug:
+        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)  # time masking
                             .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE))  # frequency masking
+    else:
+        LOGGER.info("Data Augmentation NOT added into pipeline.")
     ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
                                 reshuffle_each_iteration=True)
     ds_train = ds_train.prefetch(_AUTOTUNE)
@@ -181,7 +241,7 @@ def load_datasets(load_dir,
 
 
 if __name__ == '__main__':
-    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir, data_aug=True)
+    ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir)
 
     from matplotlib import pyplot as plt
 
@@ -191,9 +251,9 @@ if __name__ == '__main__':
             if i % 100 == 0:
                 plt.figure()
                 plt.pcolormesh(tf.transpose(sample[0][0, :, :], (1, 0)))
-        print(ds_train.output_shapes)
+        print(ds_train)
 
     plt.show()
 
     if ds_test:
-        print(ds_test.output_shapes)
+        print(ds_test)
