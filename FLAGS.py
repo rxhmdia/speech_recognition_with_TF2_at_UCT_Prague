@@ -11,11 +11,11 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
-    # load_dir = "b:/!temp/PDTSC_Debug/"
+    load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
-    load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
@@ -88,6 +88,14 @@ class FLAGS:
     lr_decay_epochs = 1
     epsilon = 0.1
     amsgrad = True
+
+    # Data Augmentation (in pipeline)
+    data_aug = {
+        'mode': "0x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'bandwidth_time': 30,
+        'bandwidth_freq': 20,
+    }
+
 
     # Decoder
     beam_width = 256

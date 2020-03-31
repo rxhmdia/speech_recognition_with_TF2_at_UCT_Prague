@@ -1,4 +1,5 @@
 import logging
+import absl
 
 
 def console_logger(name=__name__, level=logging.WARNING):
@@ -12,8 +13,11 @@ def console_logger(name=__name__, level=logging.WARNING):
         logger.handlers.clear()
     logger.setLevel(level)
     formatter = logging.Formatter('%(levelname)7s (%(name)s) %(asctime)s - %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
-    console = logging.StreamHandler()
-    console.setLevel(level)
-    console.setFormatter(formatter)
-    logger.addHandler(console)
+    if "tensorflow" in name:
+        absl.logging.get_absl_handler().setFormatter(formatter)
+    else:
+        console = logging.StreamHandler()
+        console.setLevel(level)
+        console.setFormatter(formatter)
+        logger.addHandler(console)
     return logger
