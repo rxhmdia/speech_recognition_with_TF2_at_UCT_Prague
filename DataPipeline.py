@@ -10,22 +10,22 @@ LOGGER = console_logger('tensorflow', "DEBUG")
 _AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 # TODO:
-#  SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
-#  Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
+#  Ensure resulting frequency shape is the same before and after masking? (pad with zeros instead of removing)
+# DONE:
+#   SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
+#   Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
 
 
 # noinspection DuplicatedCode
 class SpecAug:
 
-    def __init__(self, axis=0, num_instances=1, bandwidth=20):
+    def __init__(self, axis=0, bandwidth=20):
         """ Tensorflow data pipeline implementation of SpecAug time and frequency masking
 
         :param axis (int): which axis will be masked (0 ... time, 1 ... frequency)
-        :param num_instances (int): number of masking instances in one sample (>1 not supported yet)
         :param bandwidth (int): length of the masked area
         """
         self.axis = axis if axis in (0, 1) else 0
-        self.num_instances = num_instances
         self.bandwidth = bandwidth
         self._max_sx = None
 
@@ -41,16 +41,15 @@ class SpecAug:
         else:
             raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
 
-        for i in range(self.num_instances):
-            bandwidth = self.bandwidth - nrows_max + nrows  # so that shapes match!!!
-            tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
-            tm_ub = tm_lb + bandwidth  # upper bounds
+        bandwidth = self.bandwidth - nrows_max + nrows  # so that shapes after masking match!!!
+        tm_lb = tf.random.uniform([], 0, nrows - bandwidth, dtype=tf.int32)  # lower bounds
+        tm_ub = tm_lb + bandwidth  # upper bounds
 
-            mask = tf.concat((tf.ones((tm_lb,), dtype=tf.bool),
-                              tf.zeros((bandwidth,), dtype=tf.bool),
-                              tf.ones((nrows - tm_ub,), dtype=tf.bool)), axis=0)
+        mask = tf.concat((tf.ones((tm_lb,), dtype=tf.bool),
+                          tf.zeros((bandwidth,), dtype=tf.bool),
+                          tf.ones((nrows - tm_ub,), dtype=tf.bool)), axis=0)
 
-            x = tf.boolean_mask(x, mask)
+        x = tf.boolean_mask(x, mask)
 
         if self.axis == 0:
             x = tf.ensure_shape(x, (None, FLAGS.num_features))
@@ -180,10 +179,17 @@ def load_datasets(load_dir, data_aug=False, bandwidth_time=30, bandwidth_freq=20
 if __name__ == '__main__':
     ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir, data_aug=True)
 
+    from matplotlib import pyplot as plt
+
     if ds_train:
-        for sample in ds_train:
+        for i, sample in enumerate(ds_train):
             print(sample[0].shape)
+            if i % 100 == 0:
+                plt.figure()
+                plt.pcolormesh(tf.transpose(sample[0][0, :, :], (1, 0)))
         print(ds_train.output_shapes)
+
+    plt.show()
 
     if ds_test:
         print(ds_test.output_shapes)
