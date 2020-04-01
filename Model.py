@@ -142,7 +142,6 @@ def early_stopping(model, cer, best_cer, epoch, best_epoch, save_path):
     return stop_training, best_cer, best_epoch
 
 
-@tf.function(experimental_relax_shapes=True)
 def mean_ctc_loss(labels, logits, label_length, logit_length, name='ctc_loss'):
     loss = tf.nn.ctc_loss(labels, logits, label_length, logit_length,
                           logits_time_major=False,
@@ -163,7 +162,10 @@ def decode_best_output(labels, logits, label_length, logit_length):
     truth = K.ctc_label_dense_to_sparse(tf.cast(labels, tf.int32), label_length)
 
     cer = tf.edit_distance(decoded[0], truth, name="levenshtein_distance")
-    cer = tf.boolean_mask(cer, tf.not_equal(cer, np.inf))  # remove inf values (where the length of labels == 0)
+    # tf.print(tf.not_equal(cer, np.inf), tf.not_equal(cer, np.inf).shape)
+    mask = tf.not_equal(cer, np.inf)
+    mask = tf.ensure_shape(mask, (None, ))
+    cer = tf.boolean_mask(cer, mask, axis=0)  # remove inf values (where the length of labels == 0)
 
     mean_cer = tf.reduce_mean(cer)
 
@@ -183,6 +185,7 @@ def train_step(model, inputs, time_reduce_rate):
     return gradients, mean_loss
 
 
+@tf.function(experimental_relax_shapes=True)
 def test_step(model, inputs, time_reduce_rate):
     x, y, size_x, size_y = inputs
 
