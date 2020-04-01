@@ -13,15 +13,17 @@ class FLAGS:
 
     # load_dir = "b:/!temp/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
-    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
-    load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
+    # TODO: Tady Martin Minulovič
+    #  nyní trénujeme na DA datasetu s ryclostmi (0.9, 1.0 a 1.1)
 
     num_runs = 5
-    max_epochs = 10
+    max_epochs = 20
     batch_size_per_GPU = 8
 
     with open(load_dir + "data_config.json", "r") as f:
@@ -56,35 +58,35 @@ class FLAGS:
     }
     conv_params = {
         'use': True,
-        'channels': [32, 64, 128],
-        'kernels': [(16, 32), (8, 16), (4, 8)],
-        'strides': [(2, 4), (2, 4), (1, 1)],
-        'dilation_rates': [(1, 1), (1, 1), (1, 1)],
+        'channels': [32, 64, 128, 256],
+        'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
+        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
+        'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
         'padding': 'same',
         'data_format': 'channels_last',
         'batch_norm': True,
-        'drop_rates': [0., 0., 0.],
+        'drop_rates': [0., 0., 0., 0.],
     }
     bn_momentum = 0.9
     relu_clip_val = 20
     relu_alpha = 0.2
     rnn_params = {
         'use': True,
-        'num_units': [128, 128],
+        'num_units': [512, 512],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
     ff_params = {
         'use': True,
-        'num_units': [128, 64],
+        'num_units': [256, 128],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
 
     # Optimizer
-    lr = 0.1
+    lr = 0.001
     lr_decay = True
-    lr_decay_rate = 0.5
+    lr_decay_rate = 0.8
     lr_decay_epochs = 1
     epsilon = 0.1
     amsgrad = True
