@@ -93,7 +93,7 @@ class FLAGS:
 
     # Data Augmentation (in pipeline)
     data_aug = {
-        'mode': "0x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
         'bandwidth_time': 30,
         'bandwidth_freq': 20,
     }
