@@ -11,7 +11,7 @@ _NUM_INSTANCES = 1  # > 1 not supported
 _BANDWIDTH_RANGE = (2, 5)
 _AXIS = 1
 
-LOGGER = console_logger('tensorflow', "DEBUG")
+LOGGER = console_logger('tensorflow', "INFO")
 
 # TODO:
 #
