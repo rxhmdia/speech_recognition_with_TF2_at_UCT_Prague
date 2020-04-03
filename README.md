@@ -1,6 +1,14 @@
-# Character-level DNN Model for Czech Language Speech Recognition using Tensorflow 2
+# Character-level DNN Model for Czech Language Speech Recognition using TensorFlow 2
 
-One Paragraph of project description goes here
+A project which was given birth as a masters thesis at UCT Prague and now continues as a part of my PhD studies. 
+The core concept is developing a Character-level deep neural network (DNN) based model for 
+automatic speech recognition (ASR) and transcription of Czech naturally spoken language. 
+Ultimately the transcription is then to be used for controlling a robotic system using natural Czech spoken language, 
+utilizing keyword spotting mechanisms.
+
+The system starts with a data transformation pipeline, which feeds
+preprocessed speech data from two Czech natural speech corpuses ([PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html) and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013)) into an Acoustic Model (AM).
+Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.08779) are implemented into the pipeline for improving performance on testing dataset.
 
 ## Table of contents
 * [Getting Started](#getting-started)
