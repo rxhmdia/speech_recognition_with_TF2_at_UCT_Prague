@@ -12,8 +12,7 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 
 ## Table of contents
 * [Getting Started](#getting-started)
-    * [Prerequisites](#prerequisites)
-    * [Installing](#installing)
+    * [Requirements](#requirements)
 * [Project status](#project-status)
 * [Built With](#built-with)
 * [Contributing](#contributing)
@@ -26,31 +25,19 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-### Prerequisites
+### Requirements
 
-What things you need to install the software and how to install them.
+The environment was created and the required packaged were installed using the [Anaconda](https://www.anaconda.com) 
+Python library management platform which can be downloaded from [Anaconda Distribution](https://www.anaconda.com/distribution/).
 
+You can recreate the environment with all the required packages using the 
+[environment.yml](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/blob/master/environment.yml) 
+file in this repository by following instructions from [conda documentation](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file).
+
+Once conda is installed, all you have to do is open Anaconda Prompt and input:
 ```
-Give examples
+conda env create -f environment.yml
 ```
-
-### Installing
-
-A step by step series of examples that tell you how to get a development env running
-
-Say what the step will be
-
-```
-Give the example
-```
-
-And repeat
-
-```
-until finished
-```
-
-End with an example of getting some data out of the system or using it for a little demo
 
 ## Project status
 

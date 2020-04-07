@@ -1,5 +1,4 @@
 import json
-import tensorflow as tf
 
 
 class FLAGS:
@@ -28,6 +27,7 @@ class FLAGS:
     max_epochs = 20
     batch_size_per_GPU = 8
 
+    # noinspection DuplicatedCode
     with open(load_dir + "data_config.json", "r") as f:
         dc = json.load(f)
         num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
@@ -37,8 +37,6 @@ class FLAGS:
         max_time = dc["max_time"]  # 3000
     buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
-
-    num_cpu_cores = tf.data.experimental.AUTOTUNE
 
     bucket_width = 100
 

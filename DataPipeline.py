@@ -96,11 +96,11 @@ def _read_tfrecords(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrec
                     shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
     files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
     ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto,
-                                                                   num_parallel_calls=FLAGS.num_cpu_cores),
+                                                                   num_parallel_calls=_AUTOTUNE),
                           block_length=block_length,
                           cycle_length=cycle_length,
-                          num_parallel_calls=FLAGS.num_cpu_cores)
-    ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=FLAGS.num_cpu_cores)
+                          num_parallel_calls=_AUTOTUNE)
+    ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=_AUTOTUNE)
     return ds
 
 
