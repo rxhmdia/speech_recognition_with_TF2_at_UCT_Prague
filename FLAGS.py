@@ -1,5 +1,4 @@
 import json
-import tensorflow as tf
 
 
 class FLAGS:
@@ -11,21 +10,24 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
+    logger_level = "WARNING"
+
     load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
-    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
+    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
     # TODO: Tady Martin Minulovič
-    #  nyní trénujeme na DA datasetu s ryclostmi (0.9, 1.0 a 1.1)
+    #  nyní trénujeme na DA datasetu s rychlostmi (0.9, 1.0 a 1.1)
 
     num_runs = 5
     max_epochs = 20
     batch_size_per_GPU = 8
 
+    # noinspection DuplicatedCode
     with open(load_dir + "data_config.json", "r") as f:
         dc = json.load(f)
         num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
@@ -35,8 +37,6 @@ class FLAGS:
         max_time = dc["max_time"]  # 3000
     buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
-
-    num_cpu_cores = tf.data.experimental.AUTOTUNE
 
     bucket_width = 100
 

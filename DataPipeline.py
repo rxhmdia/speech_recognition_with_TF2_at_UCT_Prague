@@ -6,7 +6,7 @@ import tensorflow as tf
 from helpers import console_logger
 from FLAGS import FLAGS
 
-LOGGER = console_logger('tensorflow', "DEBUG")
+LOGGER = console_logger('tensorflow', FLAGS.logger_level)
 _AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
@@ -96,11 +96,11 @@ def _read_tfrecords(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrec
                     shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
     files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
     ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto,
-                                                                   num_parallel_calls=FLAGS.num_cpu_cores),
+                                                                   num_parallel_calls=_AUTOTUNE),
                           block_length=block_length,
                           cycle_length=cycle_length,
-                          num_parallel_calls=FLAGS.num_cpu_cores)
-    ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=FLAGS.num_cpu_cores)
+                          num_parallel_calls=_AUTOTUNE)
+    ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=_AUTOTUNE)
     return ds
 
 
@@ -207,17 +207,19 @@ def load_datasets(load_dir,
 
 
 if __name__ == '__main__':
+    from matplotlib import pyplot as plt
     ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(FLAGS.load_dir)
 
-    from matplotlib import pyplot as plt
+    epochs = 2
 
     if ds_train:
-        for i, sample in enumerate(ds_train):
-            print(sample[0].shape)
-            if i % 100 == 0:
-                plt.figure()
-                plt.pcolormesh(tf.transpose(sample[0][0, :, :], (1, 0)))
-        print(ds_train)
+        for epoch in range(epochs):
+            for i, sample in enumerate(ds_train):
+                print(sample[0].shape)
+                if i % 500 == 0:
+                    plt.figure()
+                    plt.pcolormesh(tf.transpose(sample[0][0, :, :], (1, 0)))
+            print(ds_train)
 
     plt.show()
 

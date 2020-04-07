@@ -261,8 +261,8 @@ def test_fn(model, dataset, loss, cer, num_batches, epoch):
     return mean_loss, mean_cer
 
 
-def train_model(run_number, logger_level="WARNING"):
-    logger = console_logger(__name__, logger_level)
+def train_model(run_number):
+    logger = console_logger(__name__, FLAGS.logger_level)
 
     logger.info("Clearning Keras session.")
     K.clear_session()
