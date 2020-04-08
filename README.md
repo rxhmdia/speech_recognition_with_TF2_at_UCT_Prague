@@ -13,6 +13,7 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 ## Table of contents
 * [Getting Started](#getting-started)
     * [Requirements](#requirements)
+    * [Preparing datasets for training](#preparing-datasets-for-training)
 * [Project status](#project-status)
 * [Built With](#built-with)
 * [Contributing](#contributing)
@@ -39,9 +40,19 @@ Once conda is installed, all you have to do is open Anaconda Prompt and input:
 conda env create -f environment.yml
 ```
 
+### Preparing datasets for training
+In order to train the network, you need to have a speech dataset. 
+In this project, training was done on aforementioned [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html)
+and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets. 
+For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape,
+which is done through the following steps:
+
+1. 
+2.
+
 ## Project status
 
-Development and current state of the project.
+Currently the project is in the Data Augmentation implementation and testing stages.
 
 ## Contributing
 
@@ -49,7 +60,7 @@ Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c6
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/tags). 
 
 ## Authors
 
@@ -64,8 +75,5 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 ## Acknowledgments
 * [How to write a good README for your GitHub project](https://bulldogjob.com/news/449-how-to-write-a-good-readme-for-your-github-project)
 * [A template to make good README.md](https://gist.github.com/PurpleBooth/109311bb0361f32d87a2#file-readme-template-md)
-* Hat tip to anyone whose code was used
-* Inspiration: 
-* etc
 
 
