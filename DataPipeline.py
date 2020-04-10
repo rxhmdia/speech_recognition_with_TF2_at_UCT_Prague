@@ -19,18 +19,25 @@ _AUTOTUNE = tf.data.experimental.AUTOTUNE
 #  TimeMasking
 #  FrequencyMasking
 #  multiple instances of SpecAug (2x TimeMasking, 2x TimeMasking)
+#  make SpecAug mask bandwidths randomly generated!
+#  add parameter 'p in (0, 1)' for determining maximum length of time masking relative to time length of current signal
 
 # noinspection DuplicatedCode
 class SpecAug:
+    _axis_default = 0
+    _bandwidth_default = (0, 20)
+    _max_percent_default = 1.0
 
-    def __init__(self, axis=0, bandwidth=20):
+    def __init__(self, axis=_axis_default, bandwidth=_bandwidth_default, max_percent=_max_percent_default):
         """ Tensorflow data pipeline implementation of SpecAug time and frequency masking
 
         :param axis (int): which axis will be masked (0 ... time, 1 ... frequency)
-        :param bandwidth (int): length of the masked area
+        :param bandwidth Tuple(int>0, int>0): min and max length of the masked area
+        :param max_percent (float): value between (0, 1] maximum ratio of length of bandwidth to length of signal
         """
-        self.axis = axis if axis in (0, 1) else 0
+        self.axis = axis if axis in (0, 1) else self._axis_default
         self.bandwidth = bandwidth
+        self.max_percent = max_percent if 0. < max_percent <= 1. else self._max_percent_default
         self._max_sx = None
 
     @tf.function(experimental_relax_shapes=True)
@@ -46,7 +53,10 @@ class SpecAug:
             raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
 
         # generate position of masking
-        bandwidth = self.bandwidth
+        mbw = int(float(full_len)*self.max_percent)  # maximum bandwidth based on length of signal
+        max_bandwidth = self.bandwidth[1] if mbw > self.bandwidth[1] else mbw
+        min_bandwidth = self.bandwidth[0] if max_bandwidth > self.bandwidth[0] else max_bandwidth-1
+        bandwidth = tf.random.uniform([], min_bandwidth, max_bandwidth, dtype=tf.int32)  # random length of mask
         tm_lb = tf.random.uniform([], 0, full_len - bandwidth, dtype=tf.int32)  # lower bounds
         tm_ub = tm_lb + bandwidth  # upper bounds
 
@@ -132,7 +142,9 @@ def _bucket_and_batch(ds, bucket_boundaries):
 def load_datasets(load_dir,
                   data_aug=FLAGS.data_aug['mode'],
                   bandwidth_time=FLAGS.data_aug['bandwidth_time'],
-                  bandwidth_freq=FLAGS.data_aug['bandwidth_freq']):
+                  bandwidth_freq=FLAGS.data_aug['bandwidth_freq'],
+                  max_percent_time=FLAGS.data_aug['max_percent_time'],
+                  max_percent_freq=FLAGS.data_aug['max_percent_freq']):
     path_gen = os.walk(load_dir)
 
     ds_train = None
@@ -140,8 +152,8 @@ def load_datasets(load_dir,
 
     if '1x' in data_aug or '2x' in data_aug:
         LOGGER.info("Initializing Data Augmentation for time and freq.")
-        sa_time = SpecAug(axis=0, bandwidth=bandwidth_time)
-        sa_freq = SpecAug(axis=1, bandwidth=bandwidth_freq)
+        sa_time = SpecAug(axis=0, bandwidth=bandwidth_time, max_percent=max_percent_time)
+        sa_freq = SpecAug(axis=1, bandwidth=bandwidth_freq, max_percent=max_percent_freq)
         LOGGER.debug(f"sa_time.bandwidth: {sa_time.bandwidth} |"
                      f"sa_freq.bandwidth: {sa_freq.bandwidth}")
     else:
@@ -215,10 +227,10 @@ if __name__ == '__main__':
     if ds_train:
         for epoch in range(epochs):
             for i, sample in enumerate(ds_train):
-                print(sample[0].shape)
                 if i % 500 == 0:
                     plt.figure()
                     plt.pcolormesh(tf.transpose(sample[0][0, :, :], (1, 0)))
+                    print(sample[0].shape)
             print(ds_train)
 
     plt.show()

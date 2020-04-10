@@ -47,8 +47,12 @@ and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets.
 For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape,
 which is done through the following steps:
 
-1. 
-2.
+1. prepare_data.py
+2. feature_length_range.py
+3. sort_data.py
+4. numpy_to_tfrecord.py
+
+TODO: connect these to one DataTransformation class
 
 ## Project status
 
