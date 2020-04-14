@@ -21,3 +21,11 @@ def console_logger(name=__name__, level=logging.WARNING):
         console.setFormatter(formatter)
         logger.addHandler(console)
     return logger
+
+
+def extract_channel(signal, channel_number):
+    """Extract single channel from a multi-channel (stereo) audio signal"""
+    try:
+        return signal[:, channel_number]
+    except IndexError:
+        return signal
