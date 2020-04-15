@@ -6,7 +6,7 @@ import numpy as np
 
 from pysndfx import AudioEffectsChain
 from FeatureExtraction import FeatureExtractor
-from DataLoader import DataLoader, PDTSCLoader, OralLoader
+from DataOps import DataLoader, PDTSCLoader, OralLoader
 from helpers import console_logger
 
 LOGGER = console_logger(__name__, "DEBUG")

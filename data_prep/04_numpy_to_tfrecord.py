@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 from FeatureExtraction import FeatureExtractor
-from DataLoader import DataLoader
+from DataOps import DataLoader
 
 
 def serialize_array(x, y):

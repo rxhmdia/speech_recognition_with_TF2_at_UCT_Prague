@@ -2,7 +2,6 @@ import os
 import shutil
 
 from FeatureExtraction import FeatureExtractor
-from DataLoader import DataLoader
 
 
 def feature_length_range(load_dir, save_dir, min_frame_length=100, max_frame_length=3000, mode='copy',

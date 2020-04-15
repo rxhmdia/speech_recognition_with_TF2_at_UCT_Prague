@@ -7,15 +7,25 @@ from itertools import compress
 
 # from icu import LocaleData
 import numpy as np
+import tensorflow as tf
 import soundfile as sf  # for loading audio in various formats (OGG, WAV, FLAC, ...)
 
 from bs4 import BeautifulSoup
 
 from FLAGS import FLAGS
-from helpers import extract_channel
+from helpers import console_logger, extract_channel
+
+LOGGER = console_logger('tensorflow', FLAGS.logger_level)
+_AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
-# TODO: exclude cepstra which are longer than a set number of frames
+"""#####################################################################################################################
+### |                                                                                                              | ###
+### |--------------------------------------------------DATA LOADER-------------------------------------------------| ###
+### |                                                                                                              | ###
+#####################################################################################################################"""
+
+
 class DataLoader:
     c2n_map = FLAGS.c2n_map
     n2c_map = FLAGS.n2c_map
@@ -23,8 +33,8 @@ class DataLoader:
     def __init__(self, audiofiles, transcripts, bigrams=False, repeated=False):
         """ Initialize DataLoader() object
 
-        :param audiofiles: list of paths to audio files
-        :param transcripts: list of paths to transcripts of the audio files
+        :param audiofiles: List[paths] to audio files
+        :param transcripts: List[paths] to transcripts of the audio files
         :param bigrams: (bool) whether the labels should be made into bigrams or not
         :param repeated: (bool) whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
         """
@@ -33,11 +43,18 @@ class DataLoader:
         self.bigrams = bigrams
         self.repeated = repeated
         self.audio = [[np.array(0, dtype=np.float32)]]*len(self.audiofiles)
-        self.fs = np.zeros((len(self.audiofiles)), dtype=np.uint16)            # sampling rates of the loaded audio files
-        self.starts = [np.array(0, dtype=np.float32)]*len(self.transcripts)    # list of lists of starting times of the sentences
-        self.ends = [np.array(0, dtype=np.float32)]*len(self.transcripts)      # list of lists of ending times of the sentences
-        self.tokens = [[]]*len(self.transcripts)    # list of lists of tokens (sentences) from transcripts
-        self.labels = [[np.array(0, dtype=np.int32)]]*len(self.transcripts)  # list of arrays which will contain numeric representations of characters
+        """
+        :ivar fs: (int) sampling rates of loaded audio files
+        :ivar starts: (List[List[float]]) starting times of the sentences
+        :ivar ends: (List[List[float]]) ending times of the sentences
+        :ivar tokens: (List[List[str]]) tokens (sentences) from transcripts
+        :ivar labels: (List[nDArr]) numeric representation of tokens (char -> int)
+        """
+        self.fs = np.zeros((len(self.audiofiles)), dtype=np.uint16)
+        self.starts = [np.array(0, dtype=np.float32)]*len(self.transcripts)
+        self.ends = [np.array(0, dtype=np.float32)]*len(self.transcripts)
+        self.tokens = [[]]*len(self.transcripts)
+        self.labels = [[np.array(0, dtype=np.int32)]]*len(self.transcripts)
 
         if self.bigrams:
             self.b2n_map = self.calc_bigram_map(self.c2n_map, repeated=self.repeated)
@@ -377,7 +394,6 @@ class OralLoader(DataLoader):
             assert len(turn_info_no_overlap[idx]) == len(turn_info[idx]) - num_removed
             assert all([len(t['speakers']) == 1 for t in turn_info_no_overlap[idx]])
 
-            # TODO: split into transcripts with time length of 'label_max_duration' seconds or less
             sents = []
             starts = []
             ends = []
@@ -391,7 +407,6 @@ class OralLoader(DataLoader):
                 sents.append(text[0])
                 for i in range(1, len(sync_times)):
                     utterance_duration = sync_times[i][1] - sync_times[i][0]
-                    # TODO: if current sent duration is shorter than 'label_max_duration' seconds, add to end time, else
                     if sent_duration + utterance_duration < label_max_duration:
                         ends[-1] = sync_times[i][1]
                         sent_duration += utterance_duration
@@ -508,21 +523,227 @@ class OralLoader(DataLoader):
         return labels
 
 
-if __name__ == '__main__':
+"""#####################################################################################################################
+### |                                                                                                              | ###
+### |-------------------------------------------------DATA PIPELINE------------------------------------------------| ###
+### |                                                                                                              | ###
+#####################################################################################################################"""
 
-    audio_folder = "c:/!temp/raw_debug/audio"
-    transcript_folder = "c:/!temp/raw_debug/transcripts"
-    audio_files = [os.path.join(audio_folder, f) for f in os.listdir(audio_folder)
-                   if os.path.isfile(os.path.join(audio_folder, f))]
-    transcript_files = [os.path.join(transcript_folder, f) for f in os.listdir(transcript_folder)
-                        if os.path.isfile(os.path.join(transcript_folder, f))]
-
-    pdtsc = PDTSCLoader(audio_files, transcript_files, bigrams=False, repeated=False)
-    pdtsc.transcripts_to_labels()
-    print(pdtsc.tokens[0][0])
-    print(pdtsc.labels[0][0])
-    print(pdtsc.load_audio())
-#    pdtsc.save_audio('./data/test_saved.ogg', pdtsc.audio[0][1], pdtsc.fs[0])
-#    pdtsc.save_labels(folder='./data/train', exist_ok=True)
+# TODO:
+#  AdditiveNoise?
+# DONE:
+#  SpecAug doesn't work with None shapes (so for time masking, the current code doesn't work)
+#  Batching only works if the explicit shapes in batch are all the same (freq mask works only without random bandwidth)
+#  Ensure resulting frequency shape is the same before and after masking? (pad with zeros instead of removing)
+#  TimeMasking
+#  FrequencyMasking
+#  multiple instances of SpecAug (2x TimeMasking, 2x TimeMasking)
+#  make SpecAug mask bandwidths randomly generated!
+#  add parameter 'p in (0, 1)' for determining maximum length of time masking relative to time length of current signal
 
 
+# noinspection DuplicatedCode
+class SpecAug:
+    _axis_default = 0
+    _bandwidth_default = (0, 20)
+    _max_percent_default = 1.0
+
+    def __init__(self, axis=_axis_default, bandwidth=_bandwidth_default, max_percent=_max_percent_default):
+        """ Tensorflow data pipeline implementation of SpecAug time and frequency masking
+
+        :param axis (int): which axis will be masked (0 ... time, 1 ... frequency)
+        :param bandwidth Tuple(int>0, int>0): min and max length of the masked area
+        :param max_percent (float): value between (0, 1] maximum ratio of length of bandwidth to length of signal
+        """
+        self.axis = axis if axis in (0, 1) else self._axis_default
+        self.bandwidth = bandwidth
+        self.max_percent = max_percent if 0. < max_percent <= 1. else self._max_percent_default
+        self._max_sx = None
+
+    @tf.function(experimental_relax_shapes=True)
+    def _mask_sample(self, sample, sx_max=None):
+        x, y, sx, sy = sample
+        stime, sfreq = (sx, x.shape[1])
+
+        if self.axis == 0:
+            full_len = stime
+        elif self.axis == 1:
+            full_len = sfreq
+        else:
+            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
+
+        # generate position of masking
+        mbw = int(float(full_len)*self.max_percent)  # maximum bandwidth based on length of signal
+        max_bandwidth = self.bandwidth[1] if mbw > self.bandwidth[1] else mbw
+        min_bandwidth = self.bandwidth[0] if max_bandwidth > self.bandwidth[0] else max_bandwidth-1
+        bandwidth = tf.random.uniform([], min_bandwidth, max_bandwidth, dtype=tf.int32)  # random length of mask
+        tm_lb = tf.random.uniform([], 0, full_len - bandwidth, dtype=tf.int32)  # lower bounds
+        tm_ub = tm_lb + bandwidth  # upper bounds
+
+        # generate lower bound and upper bound masks
+        mask_lb = tf.concat((tf.ones([tm_lb, ], dtype=tf.bool), tf.zeros([full_len - tm_lb, ], dtype=tf.bool)), axis=0)
+        mask_ub = tf.concat((tf.zeros([tm_ub, ], dtype=tf.bool), tf.ones([full_len - tm_ub], dtype=tf.bool)), axis=0)
+
+        # get value for padding batch to same time length
+        padding = sx_max - stime
+
+        if self.axis == 0:
+            # TIME MASKING
+            x = tf.concat((tf.boolean_mask(x, mask_lb, axis=0),
+                           tf.zeros([bandwidth + padding, sfreq]),
+                           tf.boolean_mask(x, mask_ub, axis=0)), axis=0)
+        elif self.axis == 1:
+            # FREQUENCY MASKING
+            # x = tf.pad(x, [[0, padding], [0, 0]])
+            x = tf.concat((tf.boolean_mask(x, mask_lb, axis=1),
+                           tf.zeros([sx_max, bandwidth]),
+                           tf.boolean_mask(x, mask_ub, axis=1)), axis=1)
+        else:
+            raise AttributeError("self.axis must be either 0 (time masking) or 1 (frequency masking)")
+
+        # sx = sx + padding
+        x = tf.ensure_shape(x, (None, sfreq))
+
+        return x, y, sx, sy
+
+    @tf.function(experimental_relax_shapes=True)
+    def mask(self, x, y, sx, sy):
+        return tf.map_fn(lambda sample: self._mask_sample(sample, tf.reduce_max(sx)),
+                         (x, y, sx, sy),
+                         parallel_iterations=4)
+
+
+def _parse_proto(example_proto):
+    features = {
+        'x': tf.io.FixedLenSequenceFeature([FLAGS.num_features], tf.float32, allow_missing=True),
+        'y': tf.io.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
+    }
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+    return parsed_features['x'], parsed_features['y']
+
+
+def _read_tfrecords(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrecord"),
+                    shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
+    files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
+    ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto,
+                                                                   num_parallel_calls=_AUTOTUNE),
+                          block_length=block_length,
+                          cycle_length=cycle_length,
+                          num_parallel_calls=_AUTOTUNE)
+    ds = ds.map(lambda x, y: (x, y, tf.shape(x)[0], tf.size(y)), num_parallel_calls=_AUTOTUNE)
+    return ds
+
+
+def _bucket_and_batch(ds, bucket_boundaries):
+    num_buckets = len(bucket_boundaries) + 1
+    bucket_batch_sizes = [FLAGS.batch_size_per_GPU] * num_buckets
+    padded_shapes = (tf.TensorShape([None, FLAGS.num_features]),  # cepstra padded to maximum time in batch
+                     tf.TensorShape([None]),  # labels padded to maximum length in batch
+                     tf.TensorShape([]),  # sizes not padded
+                     tf.TensorShape([]))  # sizes not padded
+    padding_values = (tf.constant(FLAGS.feature_pad_val, dtype=tf.float32),  # cepstra padded with feature_pad_val
+                      tf.constant(FLAGS.label_pad_val, dtype=tf.int64),  # labels padded with label_pad_val
+                      0,  # size(cepstrum) -- unused
+                      0)  # size(label) -- unused
+
+    bucket_transformation = tf.data.experimental.bucket_by_sequence_length(
+        element_length_func=lambda x, y, size_x, size_y: size_x,
+        bucket_boundaries=bucket_boundaries,
+        bucket_batch_sizes=bucket_batch_sizes,
+        padded_shapes=padded_shapes,
+        padding_values=padding_values
+    )
+
+    ds = ds.apply(bucket_transformation)
+    return ds
+
+
+# noinspection PyShadowingNames
+def load_datasets(load_dir,
+                  data_aug=FLAGS.data_aug['mode'],
+                  bandwidth_time=FLAGS.data_aug['bandwidth_time'],
+                  bandwidth_freq=FLAGS.data_aug['bandwidth_freq'],
+                  max_percent_time=FLAGS.data_aug['max_percent_time'],
+                  max_percent_freq=FLAGS.data_aug['max_percent_freq']):
+    path_gen = os.walk(load_dir)
+
+    ds_train = None
+    ds_test = None
+
+    if '1x' in data_aug or '2x' in data_aug:
+        LOGGER.info("Initializing Data Augmentation for time and freq.")
+        sa_time = SpecAug(axis=0, bandwidth=bandwidth_time, max_percent=max_percent_time)
+        sa_freq = SpecAug(axis=1, bandwidth=bandwidth_freq, max_percent=max_percent_freq)
+        LOGGER.debug(f"sa_time.bandwidth: {sa_time.bandwidth} |"
+                     f"sa_freq.bandwidth: {sa_freq.bandwidth}")
+    else:
+        LOGGER.info("Skipping Pipeline Data Augmentation.")
+        sa_time = None
+        sa_freq = None
+
+    # load datasets from .tfrecord files in test and train folders
+    for path, subfolders, files in path_gen:
+        folder_name = os.path.split(path)[-1]
+        files = [f for f in files if '.tfrecord' in f]
+        fullpaths = [os.path.join(path, f) for f in files]
+        if folder_name == '' and len(files) > 0:
+            num_data = FLAGS.num_train_data + FLAGS.num_test_data
+            ds = _read_tfrecords(fullpaths, shuffle=True, seed=FLAGS.shuffle_seed, block_length=num_data,
+                                 cycle_length=1)
+            ds = ds.shuffle(FLAGS.num_train_data + FLAGS.num_test_data, seed=FLAGS.shuffle_seed,
+                            reshuffle_each_iteration=False)
+            ds_train = ds.take(FLAGS.num_train_data)
+            ds_test = ds.skip(FLAGS.num_train_data)
+            LOGGER.info(f"joined dataset loaded from {path} and split into ds_train ({FLAGS.num_train_data}) "
+                        f"and ds_test (rest)")
+            break
+        if folder_name == 'test':
+            ds_test = _read_tfrecords(fullpaths, block_length=FLAGS.num_test_data)
+            LOGGER.info(f'test dataset loaded from {path}')
+        elif folder_name == 'train':
+            # don't shuffle if using shards, because bucketting doesn't work well with shards
+            ds_train = _read_tfrecords(fullpaths, block_length=FLAGS.num_train_data)
+            LOGGER.info(f'train dataset loaded from {path}')
+        else:
+            continue
+
+    # BUCKET AND BATCH DATASET
+    bucket_boundaries = list(range(FLAGS.min_time, FLAGS.max_time + 1, FLAGS.bucket_width))
+    num_buckets = len(bucket_boundaries) + 1
+    num_train_batches = (np.ceil(FLAGS.num_train_data / FLAGS.batch_size_per_GPU) + num_buckets).astype(np.int32)
+    num_test_batches = (np.ceil(FLAGS.num_test_data / FLAGS.batch_size_per_GPU) + num_buckets).astype(np.int32)
+
+    # train dataset
+    ds_train = _bucket_and_batch(ds_train,
+                                 bucket_boundaries)  # convert ds into batches of simmilar length features (bucketed)
+    # DATA AUGMENTATION
+    if '2x' in data_aug:
+        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking 1
+                            .map(sa_time.mask, num_parallel_calls=_AUTOTUNE)   # time masking 2
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE)   # frequency masking 1
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE))  # frequency masking 2
+    elif '1x' in data_aug:
+        ds_train = (ds_train.map(sa_time.mask, num_parallel_calls=_AUTOTUNE)  # time masking
+                            .map(sa_freq.mask, num_parallel_calls=_AUTOTUNE))  # frequency masking
+    else:
+        LOGGER.info("Data Augmentation NOT added into pipeline.")
+    ds_train = ds_train.shuffle(buffer_size=FLAGS.buffer_size,
+                                reshuffle_each_iteration=True)
+    ds_train = ds_train.prefetch(_AUTOTUNE)
+
+    # test dataset
+    ds_test = _bucket_and_batch(ds_test, bucket_boundaries)
+    ds_test = ds_test.prefetch(_AUTOTUNE)
+
+    return ds_train, ds_test, num_train_batches, num_test_batches
+
+
+"""#####################################################################################################################
+### |                                                                                                              | ###
+### |-----------------------------------------------DATA PREPARATION-----------------------------------------------| ###
+### |                                                                                                              | ###
+#####################################################################################################################"""
+
+
+class DataPrep:
+    pass
