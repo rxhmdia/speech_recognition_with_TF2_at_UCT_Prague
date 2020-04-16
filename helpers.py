@@ -29,3 +29,25 @@ def extract_channel(signal, channel_number):
         return signal[:, channel_number]
     except IndexError:
         return signal
+
+
+def if_bool(obj, name="obj"):
+    if isinstance(obj, bool):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type bool")
+
+
+def if_int(obj, name="obj"):
+    if isinstance(obj, int):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type int")
+
+
+def if_str(obj, name="obj"):
+    if isinstance(obj, str):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type string")
+

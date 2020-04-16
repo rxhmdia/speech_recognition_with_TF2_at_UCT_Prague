@@ -11,11 +11,13 @@ import tensorflow as tf
 import soundfile as sf  # for loading audio in various formats (OGG, WAV, FLAC, ...)
 
 from bs4 import BeautifulSoup
+from pysndfx import AudioEffectsChain
 
+from FeatureExtraction import FeatureExtractor
 from FLAGS import FLAGS
-from helpers import console_logger, extract_channel
+from helpers import console_logger, extract_channel, if_bool, if_int, if_str
 
-LOGGER = console_logger('tensorflow', FLAGS.logger_level)
+LOGGER = console_logger(__name__, FLAGS.logger_level)
 _AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
@@ -746,4 +748,205 @@ def load_datasets(load_dir,
 
 
 class DataPrep:
-    pass
+    # allowerd and default values for init
+    __dataset = ("pdtsc", "oral")
+    __feature_type = ("MFSC", "MFCC")
+    __label_type = ("unigram", "bigram")
+    __repeated = False
+    __energy = True
+    __deltas = (2, 2)
+    __nbanks = 40
+    __filter_nan = True
+    __sort = False
+    __debug = False
+
+    def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__dataset[0],
+                 feature_type=__feature_type[0], label_type=__label_type[0], repeated=__repeated,
+                 energy=__energy, deltas=__deltas, nbanks=__nbanks,
+                 filter_nan=__filter_nan, sort=__sort, debug=__debug):
+
+        self.audio_folder = os.path.normpath(if_str(audio_folder, "audio_folder"))
+        self.transcript_folder = os.path.normpath(if_str(transcript_folder, "transcript_folder"))
+        self.save_folder = os.path.normpath(if_str(save_folder, "save_folder"))
+
+        self.dataset = if_str(dataset, "dataset").lower()
+
+        if feature_type.upper() in self.__feature_type:
+            self.feature_type = feature_type.upper()
+        else:
+            raise AttributeError(f"feature_type must be one of: {self.__feature_type}")
+
+        if label_type.lower() in self.__label_type:
+            self.label_type = label_type.lower()
+        else:
+            raise AttributeError(f"label_type must be one of: {self.__label_type}")
+
+        self.repeated = if_bool(repeated, "repeated")
+        self.energy = if_bool(energy, "energy")
+
+        if (isinstance(deltas, (list, tuple))
+                and len(deltas) == 2
+                and isinstance(deltas[0], int)
+                and isinstance(deltas[0], int)):
+            self.deltas = deltas
+        else:
+            raise AttributeError(f"deltas must be length 2 tuple/list with int values inside it")
+
+        self.nbanks = if_int(nbanks, "nbanks")
+        self.filter_nan = if_bool(filter_nan, "filter_nan")
+        self.sort = if_bool(sort, "sort")
+        self.debug = if_bool(debug, "debug")
+
+        self.bigrams = True if label_type == self.__label_type[1] else False
+        self.full_save_path = os.path.join(self.save_folder,
+                                           f'{self.dataset.upper()}_{self.feature_type}_{self.label_type}'
+                                           f'_{self.nbanks}_banks{"_DEBUG" if self.debug else ""}/')
+
+    @staticmethod
+    def _get_file_paths(audio_folder, transcript_folder):
+        audio_files = [os.path.splitext(f) for f in os.listdir(audio_folder)
+                       if os.path.isfile(os.path.join(audio_folder, f))]
+        transcript_files = [os.path.splitext(f) for f in os.listdir(transcript_folder)
+                            if os.path.isfile(os.path.join(transcript_folder, f))]
+
+        files = []
+        for file1, file2 in zip(audio_files, transcript_files):
+            err_message = "{} =/= {}".format(file1[0], file2[0])
+            assert file1[0] == file2[0], err_message
+            files.append((f"{audio_folder}/{file1[0]}{file1[1]}", f"{transcript_folder}/{file2[0]}{file2[1]}"))
+
+        return files
+
+    @staticmethod
+    def _get_file_names(files):
+        return [os.path.splitext(os.path.split(file[0])[1])[0] for file in files]
+
+    def prepare_data(self, files, label_max_duration=10.0, speeds=(0.9, 1.0, 1.1)):
+        cepstra_length_list = []
+
+        file_names = self._get_file_names(files)
+
+        for speed in speeds:
+            LOGGER.info(f"Create audio_transormer for speed {speed}")
+            audio_transformer = (AudioEffectsChain().speed(speed))
+            save_path = os.path.join(self.full_save_path, f"{speed}/")
+            LOGGER.debug(f"Current save_path: {save_path}")
+            for i, file in enumerate(files):
+                if self.dataset == "pdtsc":
+                    pdtsc = PDTSCLoader([file[0]], [file[1]], self.bigrams, self.repeated)
+                    labels = pdtsc.transcripts_to_labels()  # list of lists of 1D numpy arrays
+                    labels = labels[0]  # flatten label list
+                    audio_list, fs = pdtsc.load_audio()
+                    audio = audio_list[0]
+                    fs = fs[0]
+                    LOGGER.debug(
+                        f"Loaded PDTSC with fs {fs} from:\n \t audio_path: {file[0]}\n \t transcript_path: {file[1]}")
+                elif self.dataset == "oral":
+                    oral = OralLoader([file[0]], [file[1]], self.bigrams, self.repeated)
+                    label_dict = oral.transcripts_to_labels(
+                        label_max_duration)  # Dict['file_name':Tuple[sents_list, starts_list, ends_list]]
+                    audio_dict, fs_dict = oral.load_audio()  # Dicts['file_name']
+
+                    labels = label_dict[file_names[i]]
+                    audio = audio_dict[file_names[i]]
+                    fs = fs_dict[file_names[i]]
+                    LOGGER.debug(
+                        f"Loaded ORAL with fs {fs} from:\n \t audio_path: {file[0]}\n \t transcript_path: {file[1]}")
+                else:
+                    raise ValueError("'dataset' argument must be either 'pdtsc' or 'oral'")
+
+                full_save_path = os.path.join(save_path, file_names[i])
+
+                LOGGER.info(f"\tApplying SoX transormation on audio from {full_save_path}")
+                for ii in range(len(audio)):
+                    LOGGER.debug(f"\t\t input.shape: {audio[ii].shape}")
+                    audio[ii] = audio_transformer(audio[ii])
+                    LOGGER.debug(f"\t\t output.shape: {audio[ii].shape}")
+
+                LOGGER.info(f"\tApplying FeatureExtractor on audio")
+                feat_ext = FeatureExtractor(audio, fs, feature_type=self.feature_type, energy=self.energy,
+                                            deltas=self.deltas, nbanks=self.nbanks)
+                cepstra = feat_ext.transform_data()  # list of 2D arrays
+
+                # filter out cepstra which are containing nan values
+                if self.filter_nan:
+                    LOGGER.info(f"\tFiltering out NaN values")
+                    # boolean list where False marks cepstra in which there is at least one nan value present
+                    mask_nan = [not np.isnan(cepstrum).any() for cepstrum in cepstra]
+
+                    # mask out cepstra and their corresponding labels with nan values
+                    cepstra = list(compress(cepstra, mask_nan))
+                    labels = list(compress(labels, mask_nan))
+
+                # SAVE Cepstra to files (features)
+                LOGGER.info(f"\tSaving cepstra to files")
+                FeatureExtractor.save_cepstra(cepstra, full_save_path, exist_ok=True)
+                LOGGER.debug(f"\t\tfull_save_path: {full_save_path}")
+
+                # SAVE Transcripts to files (labels)
+                LOGGER.info(f"\tSaving transcripts to files")
+                if self.dataset == 'pdtsc':
+                    pdtsc.save_labels([labels], save_path, exist_ok=True)
+                elif self.dataset == 'oral':
+                    label_dict[file_names[i]] = labels
+                    oral.save_labels(label_dict, save_path, exist_ok=True)
+                else:
+                    raise ValueError("'dataset' argument must be either 'pdtsc' or 'oral'")
+
+                LOGGER.info(f"\tChecking SAVE/LOAD consistency")
+                loaded_cepstra, loaded_cepstra_paths = FeatureExtractor.load_cepstra(full_save_path)
+                loaded_labels, loaded_label_paths = DataLoader.load_labels(full_save_path)
+
+                # flatten the lists
+                loaded_cepstra, loaded_cepstra_paths, loaded_labels, loaded_label_paths = (loaded_cepstra[0],
+                                                                                           loaded_cepstra_paths[0],
+                                                                                           loaded_labels[0],
+                                                                                           loaded_label_paths[0])
+
+                for j in range(len(cepstra)):
+                    if np.any(np.not_equal(cepstra[j], loaded_cepstra[j])):
+                        raise UserWarning("Saved and loaded cepstra are not value consistent.")
+                    if self.dataset == 'pdtsc':
+                        if np.any(np.not_equal(labels[j], loaded_labels[j])):
+                            raise UserWarning("Saved and loaded labels are not value consistent.")
+                    elif self.dataset == 'oral':
+                        if np.any(np.not_equal(labels[j][0], loaded_labels[j])):
+                            raise UserWarning("Saved and loaded labels are not value consistent.")
+
+                    # add (cepstrum_path, label_path, cepstrum_length) tuple into collective list for sorting
+                    cepstra_length_list.append(
+                        (loaded_cepstra_paths[j], loaded_label_paths[j], loaded_cepstra[j].shape[0]))
+
+                LOGGER.debug(f'files from {file_names[i]} transformed and saved into {os.path.abspath(save_path)}.')
+
+            # sort cepstra and labels by time length (number of frames)
+            if self.sort:
+                LOGGER.info(f"Sorting cepstra and labels by time length (number of frames)")
+                sort_indices = np.argsort(
+                    [c[2] for c in cepstra_length_list])  # indices which sort the lists by cepstra length
+                cepstra_length_list = [cepstra_length_list[i] for i in sort_indices]  # sort the cepstra list
+
+                num_digits = len(str(len(cepstra_length_list)))
+
+                for idx, file in enumerate(cepstra_length_list):
+                    cepstrum_path, label_path, _ = file
+                    os.rename(cepstrum_path, "{0}/cepstrum-{1:0{2}d}.npy".format(save_path, idx, num_digits))
+                    os.rename(label_path, "{0}/transcript-{1:0{2}d}.npy".format(save_path, idx, num_digits))
+                subfolders = next(os.walk(save_path))[1]
+                for folder in subfolders:
+                    try:
+                        os.rmdir(os.path.join(save_path, folder))
+                    except OSError:
+                        LOGGER.warning("Folder {} is not empty! Can't delete.".format(os.path.join(save_path, folder)))
+
+    def run(self):
+        # TODO: attributes to __init__
+        LOGGER.info("01_prepare_data")
+        files = self._get_file_paths(self.audio_folder, self.transcript_folder)
+        self.prepare_data(files, label_max_duration=10.0, speeds=(0.9, 1.0, 1.1))
+
+        LOGGER.info("02_feature_length_range")
+
+        LOGGER.info("03_sort_data")
+
+        LOGGER.info("04_numpy_to_tfrecord")

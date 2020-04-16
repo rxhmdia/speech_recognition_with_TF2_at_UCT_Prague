@@ -148,6 +148,8 @@ def prepare_data(files, save_folder, dataset="pdtsc", label_max_duration=10.0, s
 
 if __name__ == '__main__':
     # extracting audiofiles, transforming into cepstra and saving to separate folders
+    debug = True
+
     dataset = "pdtsc"
     feature_type = "MFSC"
     label_type = "unigram"
@@ -159,9 +161,9 @@ if __name__ == '__main__':
     filter_nan = True
     sort = False
 
-    audio_folder = "D:/Audio/Speech_Datasets/PDTSC/audio/"
-    transcript_folder = "D:/Audio/Speech_Datasets/PDTSC/transcripts/"
-    save_folder = 'B:/!temp/{}_{}_{}_{}_banks/'.format(dataset.upper(), feature_type, label_type, nbanks)
+    audio_folder = "b:/!DATASETS/raw_debug/audio/"
+    transcript_folder = "b:/!DATASETS/raw_debug/transcripts/"
+    save_folder = f'B:/!temp/{dataset.upper()}_{feature_type}_{label_type}_{nbanks}_banks_{"DEBUG" if debug else ""}/'
 
     files = get_file_paths(audio_folder, transcript_folder)
 
