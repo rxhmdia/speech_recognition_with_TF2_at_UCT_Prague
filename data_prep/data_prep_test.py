@@ -5,6 +5,6 @@ if __name__ == '__main__':
     transcript_folder = "b:/!DATASETS/raw_debug/transcripts/"
     save_folder = 'B:/!temp/'
 
-    dp = DataPrep(audio_folder, transcript_folder, save_folder)
+    dp = DataPrep(audio_folder, transcript_folder, save_folder, debug=True, mode="move")
 
     dp.run()
