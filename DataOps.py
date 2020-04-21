@@ -16,7 +16,7 @@ from pysndfx import AudioEffectsChain
 
 from FeatureExtraction import FeatureExtractor
 from FLAGS import FLAGS
-from helpers import console_logger, extract_channel, if_bool, if_int, if_str
+from helpers import console_logger, extract_channel, if_bool, if_float, if_int, if_str
 
 LOGGER = console_logger(__name__, FLAGS.logger_level)
 _AUTOTUNE = tf.data.experimental.AUTOTUNE
@@ -759,18 +759,21 @@ class DataPrep:
     __nbanks = 40
     __filter_nan = True
     __sort = False
-    __debug = False
+    __label_max_duration = 10.0
+    __speeds = (1.0, )
     __min_frame_length = 100
     __max_frame_length = 3000
     __mode = ('copy', 'move')
     __feature_names = 'cepstrum'
     __label_names = 'transcript'
+    __debug = False
 
     def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__dataset[0],
                  feature_type=__feature_type[0], label_type=__label_type[0], repeated=__repeated,
                  energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
-                 debug=__debug, min_frame_length=__min_frame_length, max_frame_length=__max_frame_length,
-                 mode=__mode[0], feature_names=__feature_names, label_names=__label_names):
+                 label_max_duration=10.0, speeds=(1.0, ), min_frame_length=__min_frame_length,
+                 max_frame_length=__max_frame_length, mode=__mode[0], feature_names=__feature_names,
+                 label_names=__label_names, debug=__debug):
 
         # 01_prepare_data params
         self.audio_folder = os.path.normpath(if_str(audio_folder, "audio_folder"))
@@ -803,6 +806,10 @@ class DataPrep:
         self.nbanks = if_int(nbanks, "nbanks")
         self.filter_nan = if_bool(filter_nan, "filter_nan")
         self.sort = if_bool(sort, "sort")
+
+        self.label_max_duration = if_float(label_max_duration, "label_max_duration")
+        self.speeds = speeds if [if_float(s) for s in speeds] else self.__speeds
+
         self.debug = if_bool(debug, "debug")
 
         self.bigrams = True if label_type == self.__label_type[1] else False
@@ -836,8 +843,11 @@ class DataPrep:
         return [os.path.splitext(os.path.split(file[0])[1])[0] for file in files]
 
     # 01_prepare_data.py
-    def prepare_data(self, files, label_max_duration=10.0, speeds=(1.0, )):
+    def prepare_data(self, files):
         cepstra_length_list = []
+
+        label_max_duration = self.label_max_duration
+        speeds = self.speeds
 
         file_names = self._get_file_names(files)
 
@@ -954,7 +964,7 @@ class DataPrep:
                     except OSError:
                         LOGGER.warning("Folder {} is not empty! Can't delete.".format(os.path.join(save_path, folder)))
 
-    #02_feature_length_range.py
+    # 02_feature_length_range.py
     def feature_length_range(self):
         """ Check individual files (features and their labels) in load_dir and copy/move those which satisfy the condition:
         min_frame_length <= feature_frame_len <= max_frame_length
@@ -1020,7 +1030,7 @@ class DataPrep:
         # TODO: attributes to __init__
         LOGGER.info("01_prepare_data")
         files = self._get_file_paths(self.audio_folder, self.transcript_folder)
-        self.prepare_data(files, label_max_duration=10.0, speeds=(1.0, ))
+        self.prepare_data(files)
 
         LOGGER.info("02_feature_length_range")
         self.feature_length_range()

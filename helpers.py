@@ -1,6 +1,8 @@
 import logging
 import absl
 
+import numpy as np
+
 
 def console_logger(name=__name__, level=logging.WARNING):
 
@@ -31,11 +33,25 @@ def extract_channel(signal, channel_number):
         return signal
 
 
+def if_array(obj, name="obj"):
+    if isinstance(obj, (list, tuple, np.ndarray)):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type list, tuple or ndarray")
+
+
 def if_bool(obj, name="obj"):
     if isinstance(obj, bool):
         return obj
     else:
         raise AttributeError(f"{name} must be of type bool")
+
+
+def if_float(obj, name="obj"):
+    if isinstance(obj, float):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type float")
 
 
 def if_int(obj, name="obj"):
