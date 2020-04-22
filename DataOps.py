@@ -1013,18 +1013,98 @@ class DataPrep:
                 if self.min_frame_length <= feat_frame_len <= self.max_frame_length:
                     if self.mode == 'copy':
                         shutil.copy2(feat_load_path, feat_save_path)
-                        print("Copied {} to {}".format(feat_load_path, feat_save_path))
+                        LOGGER.debug("Copied {} to {}".format(feat_load_path, feat_save_path))
                         shutil.copy2(label_load_path, label_save_path)
-                        print("Copied {} to {}".format(label_load_path, label_save_path))
+                        LOGGER.debug("Copied {} to {}".format(label_load_path, label_save_path))
                     elif self.mode == 'move':
                         os.rename(feat_load_path, feat_save_path)
-                        print("Moved {} to {}".format(feat_load_path, feat_save_path))
+                        LOGGER.debug("Moved {} to {}".format(feat_load_path, feat_save_path))
                         os.rename(label_load_path, label_save_path)
-                        print("Moved {} to {}".format(label_load_path, label_save_path))
+                        LOGGER.debug("Moved {} to {}".format(label_load_path, label_save_path))
                     else:
                         raise ValueError("argument mode must be eiher 'copy' or 'move'")
 
-            print("Finished.")
+            LOGGER.info("Finished.")
+
+    # 03_sort_data.py
+    # TODO: move attributes to __init__
+    #  add attribute for train/test set split ratio (e.g. tt_split_ratio = 0.9)
+    #  rewrite the code that it splits the dataset into train and test folders
+    #  ... focusing on even length distribution in test
+    @staticmethod
+    def _sort_by_feature_file_size(folder, feature_pattern='cepstrum', label_pattern='transcript'):
+        """
+
+        :param folder:
+        :param feature_pattern:
+        :param label_pattern:
+        :return:
+        """
+
+        path_gen = os.walk(folder)
+
+        file_size_list = []
+
+        for path, subfolders, files in path_gen:
+            fullpaths = []
+            for file in files:
+                if feature_pattern in file:
+                    label_fullpath = os.path.join(path, file.replace(feature_pattern,
+                                                                     label_pattern))  # corresponding label path
+                    if os.path.exists(label_fullpath):
+                        fullpaths.append((os.path.join(path, file), label_fullpath))
+                    else:
+                        message = 'corresponding label file not found at path {}'.format(label_fullpath)
+                        raise FileNotFoundError(message)
+
+            file_size_list.extend(zip(fullpaths, [os.path.getsize(fp[0]) for fp in fullpaths]))
+
+        sorted_file_size_list = sorted(file_size_list, key=lambda x: x[1])
+        LOGGER.debug(f"sorted_file_size_list: {sorted_file_size_list}")
+
+        return sorted_file_size_list
+
+    def move_to_shard_folders(self, sorted_list, min_shard_size=1024, save_folder=None,
+                              save_feature_pattern='cepstrum', save_label_pattern='transcript'):
+        """
+
+        :param sorted_list:
+        :param min_shard_size: minimum size of folder shards in which the data is split in MBytes
+        :param save_folder:
+        :param save_feature_pattern:
+        :param save_label_pattern:
+        :return:
+        """
+        data_len = len(sorted_list)
+        data_size = sum(sfs[1] for sfs in sorted_list)
+        byte_min_shard_size = min_shard_size * 1e6  # convert to Byte size
+        max_num_shards = int(data_size // byte_min_shard_size + 1)
+        num_data_digits = len(str(data_len))
+        num_shard_digits = len(str(max_num_shards))
+
+        current_shard_size = 0
+        file_idx = 0
+        shard_idx = 0
+
+        if not save_folder:
+            save_folder = os.path.dirname(sorted_list[0][0][0])
+            print('Save folder implicitly set to {}'.format(save_folder))
+
+        for (feature_path, label_path), size in sorted_list:
+            current_shard_folder = os.path.join(save_folder, 'shard_{0:0{1}d}'.format(shard_idx, num_shard_digits))
+            os.makedirs(current_shard_folder, exist_ok=True)
+            new_feature_name = '{0}-{1:0{2}d}.npy'.format(save_feature_pattern, file_idx, num_data_digits)
+            new_label_name = '{0}-{1:0{2}d}.npy'.format(save_label_pattern, file_idx, num_data_digits)
+            os.rename(feature_path, os.path.join(current_shard_folder, new_feature_name))
+            os.rename(label_path, os.path.join(current_shard_folder, new_label_name))
+            if current_shard_size < byte_min_shard_size:
+                file_idx += 1
+                current_shard_size += size
+            else:
+                print('Files for shard number {} saved to folder {}'.format(shard_idx, current_shard_folder))
+                file_idx = 0
+                shard_idx += 1
+                current_shard_size = 0
 
     def run(self):
         # TODO: attributes to __init__
