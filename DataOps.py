@@ -766,6 +766,9 @@ class DataPrep:
     __mode = ('copy', 'move')
     __feature_names = 'cepstrum'
     __label_names = 'transcript'
+    __tt_split_ratio = 0.9
+    __train_shard_size = 2**10
+    __test_shard_size = 2**7
     __debug = False
 
     def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__dataset[0],
@@ -773,7 +776,9 @@ class DataPrep:
                  energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
                  label_max_duration=10.0, speeds=(1.0, ), min_frame_length=__min_frame_length,
                  max_frame_length=__max_frame_length, mode=__mode[0], feature_names=__feature_names,
-                 label_names=__label_names, debug=__debug):
+                 label_names=__label_names, tt_split_ratio=__tt_split_ratio,
+                 train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
+                 debug=__debug):
 
         # 01_prepare_data params
         self.audio_folder = os.path.normpath(if_str(audio_folder, "audio_folder"))
@@ -822,6 +827,11 @@ class DataPrep:
         self.mode = mode if if_str(mode) in self.__mode else self.__mode[0]
         self.feature_names = if_str(feature_names)
         self.label_names = if_str(label_names)
+
+        # 03_sort_data params
+        self.tt_split_ratio = if_float(tt_split_ratio)  # TODO: range between 0. and 1.
+        self.train_shard_size = train_shard_size
+        self.test_shard_size = test_shard_size
 
     @staticmethod
     def _get_file_paths(audio_folder, transcript_folder):
@@ -979,7 +989,7 @@ class DataPrep:
         """
 
         # normalize the save directory path
-        save_path = f"{self.full_save_path[:-1]}_min_{self.min_frame_length}_max_{self.max_frame_length}"
+        save_path = f"{self.full_save_path[:-1]}_min_{self.min_frame_length}_max_{self.max_frame_length}/"
 
         folder_structure_gen = os.walk(self.full_save_path)  # ('path_to_current_folder', [subfolders], ['files', ...])
 
@@ -1022,35 +1032,27 @@ class DataPrep:
                         os.rename(label_load_path, label_save_path)
                         LOGGER.debug("Moved {} to {}".format(label_load_path, label_save_path))
                     else:
-                        raise ValueError("argument mode must be eiher 'copy' or 'move'")
+                        raise ValueError("argument mode must be either 'copy' or 'move'")
 
-            LOGGER.info("Finished.")
+        self.full_save_path = save_path
+        LOGGER.info(f"Full save path changed to: {self.full_save_path}")
+        LOGGER.info("Finished.")
 
     # 03_sort_data.py
-    # TODO: move attributes to __init__
-    #  add attribute for train/test set split ratio (e.g. tt_split_ratio = 0.9)
-    #  rewrite the code that it splits the dataset into train and test folders
-    #  ... focusing on even length distribution in test
-    @staticmethod
-    def _sort_by_feature_file_size(folder, feature_pattern='cepstrum', label_pattern='transcript'):
-        """
+    def _get_sorted_lists_by_file_size(self, save_path):
 
-        :param folder:
-        :param feature_pattern:
-        :param label_pattern:
-        :return:
-        """
-
-        path_gen = os.walk(folder)
+        path_gen = os.walk(save_path)
 
         file_size_list = []
+        sorted_train_list = []
+        sorted_test_list = []
 
         for path, subfolders, files in path_gen:
             fullpaths = []
             for file in files:
-                if feature_pattern in file:
-                    label_fullpath = os.path.join(path, file.replace(feature_pattern,
-                                                                     label_pattern))  # corresponding label path
+                if self.feature_names in file:
+                    label_fullpath = os.path.join(path, file.replace(self.feature_names,
+                                                                     self.label_names))  # corresponding label path
                     if os.path.exists(label_fullpath):
                         fullpaths.append((os.path.join(path, file), label_fullpath))
                     else:
@@ -1060,24 +1062,34 @@ class DataPrep:
             file_size_list.extend(zip(fullpaths, [os.path.getsize(fp[0]) for fp in fullpaths]))
 
         sorted_file_size_list = sorted(file_size_list, key=lambda x: x[1])
-        LOGGER.debug(f"sorted_file_size_list: {sorted_file_size_list}")
 
-        return sorted_file_size_list
+        LOGGER.info("Splitting into train and test datasets by tt_split_ratio")
+        data_len = len(sorted_file_size_list)
+        test_period = 1.0//(1.0 - self.tt_split_ratio)
 
-    def move_to_shard_folders(self, sorted_list, min_shard_size=1024, save_folder=None,
-                              save_feature_pattern='cepstrum', save_label_pattern='transcript'):
+        for i in range(data_len):
+            if (i + 1) % test_period:
+                # put into train_dataset
+                sorted_train_list.append(sorted_file_size_list[i])
+            else:
+                # put into test_dataset
+                sorted_test_list.append(sorted_file_size_list[i])
+        LOGGER.info("File-size lists for train and test datasets sorted and saved.")
+
+        return sorted_train_list, sorted_test_list
+
+    def move_to_shard_folders(self, sorted_list, shard_size=1024, subfolder=None):
         """
 
         :param sorted_list:
-        :param min_shard_size: minimum size of folder shards in which the data is split in MBytes
-        :param save_folder:
-        :param save_feature_pattern:
-        :param save_label_pattern:
-        :return:
+        :param shard_size: approximate size of folder shards in which the data is split in MBytes
+        :param subfolder: either "train" or "test"
+        :return: None
         """
         data_len = len(sorted_list)
         data_size = sum(sfs[1] for sfs in sorted_list)
-        byte_min_shard_size = min_shard_size * 1e6  # convert to Byte size
+
+        byte_min_shard_size = shard_size * 1e6  # convert to Byte size
         max_num_shards = int(data_size // byte_min_shard_size + 1)
         num_data_digits = len(str(data_len))
         num_shard_digits = len(str(max_num_shards))
@@ -1086,28 +1098,28 @@ class DataPrep:
         file_idx = 0
         shard_idx = 0
 
-        if not save_folder:
-            save_folder = os.path.dirname(sorted_list[0][0][0])
-            print('Save folder implicitly set to {}'.format(save_folder))
+        save_folder = os.path.join(self.full_save_path, subfolder)
+        os.makedirs(save_folder, exist_ok=True)
+        LOGGER.info('Save folder set to {}'.format(save_folder))
 
-        for (feature_path, label_path), size in sorted_list:
+        for i, ((feature_path, label_path), size) in enumerate(sorted_list):
             current_shard_folder = os.path.join(save_folder, 'shard_{0:0{1}d}'.format(shard_idx, num_shard_digits))
             os.makedirs(current_shard_folder, exist_ok=True)
-            new_feature_name = '{0}-{1:0{2}d}.npy'.format(save_feature_pattern, file_idx, num_data_digits)
-            new_label_name = '{0}-{1:0{2}d}.npy'.format(save_label_pattern, file_idx, num_data_digits)
+            new_feature_name = '{0}-{1:0{2}d}.npy'.format(self.feature_names, file_idx, num_data_digits)
+            new_label_name = '{0}-{1:0{2}d}.npy'.format(self.label_names, file_idx, num_data_digits)
             os.rename(feature_path, os.path.join(current_shard_folder, new_feature_name))
             os.rename(label_path, os.path.join(current_shard_folder, new_label_name))
             if current_shard_size < byte_min_shard_size:
                 file_idx += 1
                 current_shard_size += size
             else:
-                print('Files for shard number {} saved to folder {}'.format(shard_idx, current_shard_folder))
+                LOGGER.info('Files for shard number {} saved to folder {}'.format(shard_idx, current_shard_folder))
                 file_idx = 0
                 shard_idx += 1
                 current_shard_size = 0
+        LOGGER.info(f"{subfolder} subfolder filled with sorted shards.")
 
     def run(self):
-        # TODO: attributes to __init__
         LOGGER.info("01_prepare_data")
         files = self._get_file_paths(self.audio_folder, self.transcript_folder)
         self.prepare_data(files)
@@ -1116,5 +1128,10 @@ class DataPrep:
         self.feature_length_range()
 
         LOGGER.info("03_sort_data")
+        for speed in self.speeds:
+            save_folder = os.path.join(self.full_save_path, str(speed))
+            sorted_train_list, sorted_test_list = self._get_sorted_lists_by_file_size(save_folder)
+            self.move_to_shard_folders(sorted_train_list, self.train_shard_size, f"{speed}/train")
+            self.move_to_shard_folders(sorted_test_list, self.test_shard_size, f"{speed}/test")
 
         LOGGER.info("04_numpy_to_tfrecord")
