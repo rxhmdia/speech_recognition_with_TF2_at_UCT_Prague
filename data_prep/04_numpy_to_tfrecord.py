@@ -16,12 +16,12 @@ def serialize_array(x, y):
     return example.SerializeToString()
 
 
-def numpy_to_tfrecord(path_to_files, output_path='',
+def numpy_to_tfrecord(path_to_files, output_folder='',
                       feature_names='cepstrum', label_names='transcript'):
     """
 
     :param path_to_files: (str) path to folder with subfolders of numpy files
-    :param output_path: (str)path to folder with output tfrecord files
+    :param output_folder: (str)path to folder with output tfrecord files
     :param feature_names: sequence of symbols that can be used as common identifier for feature files
     :param label_names: sequence of symbols that can be used as common identifier for label files
     :return: None
@@ -30,11 +30,6 @@ def numpy_to_tfrecord(path_to_files, output_path='',
     path_to_files = os.path.normpath(path_to_files)
     folder_structure_gen = os.walk(path_to_files)  # ('path_to_current_folder', [subfolders], ['files', ...])
 
-    if output_path and isinstance(output_path, str):
-        output_path = os.path.normpath(output_path)
-    else:
-        output_path = path_to_files
-
     for folder in folder_structure_gen:
         path, subfolders, files = folder
         if not files:
@@ -42,14 +37,23 @@ def numpy_to_tfrecord(path_to_files, output_path='',
         feat_file_names = [f for f in files if feature_names in f]
         label_file_names = [f for f in files if label_names in f]
 
+        print(path.split("\\"))
+
+        if output_folder and isinstance(output_folder, str):
+            output_path = os.path.join(os.path.normpath(output_folder), *path.split("\\")[-3:])
+            os.makedirs(os.path.split(output_path)[0], exist_ok=True)
+        else:
+            output_path = os.path.splitext(path)[0]
+        print(output_path)
+
         num_feats = len(feat_file_names)
         num_labels = len(label_file_names)
 
         assert num_feats == num_labels, 'There is {} feature files and {} label files (must be same).'.format(num_feats,
                                                                                                               num_labels)
 
-        tfrecord_path = os.path.join(output_path, os.path.split(path)[1]) + '.tfrecord'
-        writer = tf.python_io.TFRecordWriter(tfrecord_path)
+        tfrecord_path = output_path + '.tfrecord'
+        writer = tf.io.TFRecordWriter(tfrecord_path)
 
         for i in range(num_feats):
             feat_load_path = os.path.join(path, feat_file_names[i])
@@ -69,8 +73,7 @@ def numpy_to_tfrecord(path_to_files, output_path='',
 
 
 if __name__ == '__main__':
-    path_to_files = ["b:/!temp/ORAL_MFSC_unigram_40_banks_min_100_max_3000/train",
-                     "b:/!temp/ORAL_MFSC_unigram_40_banks_min_100_max_3000/test"]
+    path_to_files = ["b:/!temp/PDTSC_MFSC_unigram_40_banks_DEBUG_min_100_max_3000"]
 
     for path in path_to_files:
         numpy_to_tfrecord(path)
