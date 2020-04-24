@@ -1,6 +1,8 @@
 import logging
 import absl
 
+import numpy as np
+
 
 def console_logger(name=__name__, level=logging.WARNING):
 
@@ -21,3 +23,47 @@ def console_logger(name=__name__, level=logging.WARNING):
         console.setFormatter(formatter)
         logger.addHandler(console)
     return logger
+
+
+def extract_channel(signal, channel_number):
+    """Extract single channel from a multi-channel (stereo) audio signal"""
+    try:
+        return signal[:, channel_number]
+    except IndexError:
+        return signal
+
+
+def if_array(obj, name="obj"):
+    if isinstance(obj, (list, tuple, np.ndarray)):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type list, tuple or ndarray")
+
+
+def if_bool(obj, name="obj"):
+    if isinstance(obj, bool):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type bool")
+
+
+def if_float(obj, name="obj"):
+    if isinstance(obj, float):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type float")
+
+
+def if_int(obj, name="obj"):
+    if isinstance(obj, int):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type int")
+
+
+def if_str(obj, name="obj"):
+    if isinstance(obj, str):
+        return obj
+    else:
+        raise AttributeError(f"{name} must be of type string")
+
