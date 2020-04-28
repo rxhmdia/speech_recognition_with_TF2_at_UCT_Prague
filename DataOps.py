@@ -749,10 +749,10 @@ def load_datasets(load_dir,
 
 
 class DataPrep:
-    # allowerd and default values for init
-    __dataset = ("pdtsc", "oral")
-    __feature_type = ("MFSC", "MFCC")
-    __label_type = ("unigram", "bigram")
+    # allowed and default values for init
+    __datasets = ("pdtsc", "oral")
+    __feature_types = ("MFSC", "MFCC")
+    __label_types = ("unigram", "bigram")
     __repeated = False
     __energy = True
     __deltas = (2, 2)
@@ -763,7 +763,7 @@ class DataPrep:
     __speeds = (1.0, )
     __min_frame_length = 100
     __max_frame_length = 3000
-    __mode = ('copy', 'move')
+    __modes = ('copy', 'move')
     __feature_names = 'cepstrum'
     __label_names = 'transcript'
     __tt_split_ratio = 0.9
@@ -771,11 +771,11 @@ class DataPrep:
     __test_shard_size = 2**7
     __debug = False
 
-    def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__dataset[0],
-                 feature_type=__feature_type[0], label_type=__label_type[0], repeated=__repeated,
+    def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__datasets[0],
+                 feature_type=__feature_types[0], label_type=__label_types[0], repeated=__repeated,
                  energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
                  label_max_duration=10.0, speeds=(1.0, ), min_frame_length=__min_frame_length,
-                 max_frame_length=__max_frame_length, mode=__mode[0], feature_names=__feature_names,
+                 max_frame_length=__max_frame_length, mode=__modes[0], feature_names=__feature_names,
                  label_names=__label_names, tt_split_ratio=__tt_split_ratio,
                  train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
                  debug=__debug):
@@ -787,15 +787,15 @@ class DataPrep:
 
         self.dataset = if_str(dataset, "dataset").lower()
 
-        if feature_type.upper() in self.__feature_type:
+        if feature_type.upper() in self.__feature_types:
             self.feature_type = feature_type.upper()
         else:
-            raise AttributeError(f"feature_type must be one of: {self.__feature_type}")
+            raise AttributeError(f"feature_type must be one of: {self.__feature_types}")
 
-        if label_type.lower() in self.__label_type:
+        if label_type.lower() in self.__label_types:
             self.label_type = label_type.lower()
         else:
-            raise AttributeError(f"label_type must be one of: {self.__label_type}")
+            raise AttributeError(f"label_type must be one of: {self.__label_types}")
 
         self.repeated = if_bool(repeated, "repeated")
         self.energy = if_bool(energy, "energy")
@@ -817,14 +817,14 @@ class DataPrep:
 
         self.debug = if_bool(debug, "debug")
 
-        self.bigrams = True if label_type == self.__label_type[1] else False
+        self.bigrams = True if label_type == self.__label_types[1] else False
         self.full_save_path = os.path.join(self.save_folder,
                                            f'{self.dataset.upper()}_{self.feature_type}_{self.label_type}'
                                            f'_{self.nbanks}_banks{"_DEBUG" if self.debug else ""}/')
         # 02_feature_length_range params
         self.min_frame_length = if_int(min_frame_length)
         self.max_frame_length = if_int(max_frame_length)
-        self.mode = mode if if_str(mode) in self.__mode else self.__mode[0]
+        self.mode = mode if if_str(mode) in self.__modes else self.__modes[0]
         self.feature_names = if_str(feature_names)
         self.label_names = if_str(label_names)
 
