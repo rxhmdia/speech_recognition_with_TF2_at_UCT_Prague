@@ -41,18 +41,48 @@ conda env create -f environment.yml
 ```
 
 ### Preparing datasets for training
-In order to train the network, you need to have a speech dataset. 
+In order to train the network, you need to have a speech dataset transcripts in czech language. 
 In this project, training was done on aforementioned [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html)
 and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets. 
-For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape,
-which is done through the following steps:
+For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape 
+and encoded into .tfrecord format, which is done by calling the `DataPrep` class from `DataOps.py`. 
 
-1. prepare_data.py
-2. feature_length_range.py
-3. sort_data.py
-4. numpy_to_tfrecord.py
+Example for calling `DataPrep` on raw PDTSC dataset files with default preprocessing settings:
 
-TODO: connect these to one DataTransformation class
+```
+audio_folder = "path/to/PDTSC/folder/raw/audio/"
+transcript_folder = "path/to/PDTSC/folder/raw/transcripts/"
+save_folder = 'path/to/output/folder'
+
+dp = DataPrep(audio_folder, transcript_folder, save_folder)
+
+dp.run()
+```
+
+To change preprocessing settings, there are optional keyword arguments in `DataPrep` class. 
+Here are the default values and a brief explanation of them:
+```
+__datasets = ("pdtsc", "oral")
+__feature_types = ("MFSC", "MFCC")
+__label_types = ("unigram", "bigram")
+__repeated = False
+__energy = True
+__deltas = (2, 2)
+__nbanks = 40
+__filter_nan = True
+__sort = False
+__label_max_duration = 10.0
+__speeds = (1.0, )
+__min_frame_length = 100
+__max_frame_length = 3000
+__modes = ('copy', 'move')
+__feature_names = 'cepstrum'
+__label_names = 'transcript'
+__tt_split_ratio = 0.9
+__train_shard_size = 2**10
+__test_shard_size = 2**7
+__debug = False
+```
 
 ## Project status
 
