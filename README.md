@@ -60,7 +60,11 @@ dp.run()
 ```
 
 To change preprocessing settings, there are optional keyword arguments in `DataPrep` class. 
-Here are the default values and a brief explanation of them:
+A brief explanation of the arguments:
+```
+dataset
+```
+Here are the default values of the arguments:
 ```
 __datasets = ("pdtsc", "oral")
 __feature_types = ("MFSC", "MFCC")
