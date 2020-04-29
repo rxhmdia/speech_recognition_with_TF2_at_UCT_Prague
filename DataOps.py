@@ -779,6 +779,32 @@ class DataPrep:
                  label_names=__label_names, tt_split_ratio=__tt_split_ratio,
                  train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
                  debug=__debug):
+        """
+
+        :param audio_folder (string): path to folder with raw audio files (.wav or .ogg)
+        :param transcript_folder (string): path to folder with raw transcript files (.txt)
+        :param save_folder (string): path to folder in which to save the preprocessed data
+        :param dataset (string): which dataset is to be expected (allowed:"pdtsc" or "oral")
+        :param feature_type (string): which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
+        :param label_type (string): type of labels (so far only "unigram" is implemented)
+        :param repeated (bool): whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
+        :param energy (bool): whether energy feature should be included into feature matrix
+        :param deltas (Tuple[int, int]): area from which to calculate differences for deltas and delta-deltas
+        :param nbanks (int): number of mel-scaled filter banks
+        :param filter_nan (bool): whether to filter-out inputs with NaN values
+        :param sort (bool): whether to sort resulting cepstra by file size (i.e. audio length)
+        :param label_max_duration (float): maximum time duration of the audio utterances
+        :param speeds (Tuple[float, ...]): speed augmentation multipliers (numbers between 0. and 1.)
+        :param min_frame_length:
+        :param max_frame_length:
+        :param mode:
+        :param feature_names:
+        :param label_names:
+        :param tt_split_ratio:
+        :param train_shard_size:
+        :param test_shard_size:
+        :param debug:
+        """
 
         # 01_prepare_data params
         self.audio_folder = os.path.normpath(if_str(audio_folder, "audio_folder"))
