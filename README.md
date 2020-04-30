@@ -58,17 +58,38 @@ dp = DataPrep(audio_folder, transcript_folder, save_folder)
 
 dp.run()
 ```
+__Mandatory arguments in `DataPrep` class:__
+ - __audio_folder__ _(string)_: path to folder with raw audio files (.wav or .ogg)
+ - __transcript_folder__ _(string)_: path to folder with raw transcript files (.txt)
+ - __save_folder__ _(string)_: path to folder in which to save the preprocessed data
 
-To change preprocessing settings, there are optional keyword arguments in `DataPrep` class. 
-A brief explanation of the arguments:
+__Optional keyword arguments in `DataPrep` class:__
+ - __dataset__ _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
+ - __feature_type__ _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
+ - __label_type__ _(string)_: type of labels (so far only "unigram" is implemented)
+ - __repeated__ _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
+ - __energy__ _(bool)_: whether energy feature should be included into feature matrix
+ - __deltas__ _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
+ - __nbanks__ _(int)_: number of mel-scaled filter banks
+ - __filter_nan__ _(bool)_: whether to filter-out inputs with NaN values
+ - __sort__ _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
+ - __label_max_duration__ _(float)_: maximum time duration of the audio utterances
+ - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (value between 0. and 1.)
+ - __min_frame_length__ _(int)_: signals with less time-frames will be excluded
+ - __max_frame_length__ _(int)_: signals with more time-frames will be excluded
+ - __mode__ _(string)_: whether to copy or move the not excluded files to a new folder
+ - __feature_names__ _(string)_: part of filename that all feature files have in common 
+ - __label_names__ _(string)_: part of filename that all label files have in common
+ - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (value between 0. and 1.)
+ - __train_shard_size__ _(int)_: approximate tfrecord shard sizes for training data (in MB)
+ - __test_shard_size__ _(int)_: approximate tfrecord shard sizes for testing data (in MB)
+ - __debug__ _(bool)_: switch between normal and debug mode
+
+__Default/Allowed values of the keyword arguments in `DataPrep` class:__
 ```
-dataset
-```
-Here are the default values of the arguments:
-```
-__datasets = ("pdtsc", "oral")
-__feature_types = ("MFSC", "MFCC")
-__label_types = ("unigram", "bigram")
+__datasets = ("pdtsc", "oral")  # default choice: [0]
+__feature_types = ("MFSC", "MFCC")  # default choice: [0]
+__label_types = ("unigram", "bigram")  # default choice: [0]
 __repeated = False
 __energy = True
 __deltas = (2, 2)
@@ -79,7 +100,7 @@ __label_max_duration = 10.0
 __speeds = (1.0, )
 __min_frame_length = 100
 __max_frame_length = 3000
-__modes = ('copy', 'move')
+__modes = ('copy', 'move')  # default choice: [0]
 __feature_names = 'cepstrum'
 __label_names = 'transcript'
 __tt_split_ratio = 0.9

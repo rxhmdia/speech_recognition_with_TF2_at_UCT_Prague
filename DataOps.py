@@ -779,7 +779,7 @@ class DataPrep:
                  label_names=__label_names, tt_split_ratio=__tt_split_ratio,
                  train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
                  debug=__debug):
-        """
+        """ End-to-end data preparation of raw features and labels into tfrecord files ready to be fed into the AM
 
         :param audio_folder (string): path to folder with raw audio files (.wav or .ogg)
         :param transcript_folder (string): path to folder with raw transcript files (.txt)
@@ -794,16 +794,16 @@ class DataPrep:
         :param filter_nan (bool): whether to filter-out inputs with NaN values
         :param sort (bool): whether to sort resulting cepstra by file size (i.e. audio length)
         :param label_max_duration (float): maximum time duration of the audio utterances
-        :param speeds (Tuple[float, ...]): speed augmentation multipliers (numbers between 0. and 1.)
-        :param min_frame_length:
-        :param max_frame_length:
-        :param mode:
-        :param feature_names:
-        :param label_names:
-        :param tt_split_ratio:
-        :param train_shard_size:
-        :param test_shard_size:
-        :param debug:
+        :param speeds (Tuple[float, ...]): speed augmentation multipliers (value between 0. and 1.)
+        :param min_frame_length (int): signals with less time-frames will be excluded
+        :param max_frame_length (int): signals with more time-frames will be excluded
+        :param mode (string): whether to copy or move the not excluded files to a new folder
+        :param feature_names (string): part of filename that all feature files have in common
+        :param label_names (string): part of filename that all label files have in common
+        :param tt_split_ratio (float): split ratio of training and testing data files (value between 0. and 1.)
+        :param train_shard_size (int): approximate tfrecord shard sizes for training data (in MB)
+        :param test_shard_size (int): approximate tfrecord shard sizes for testing data (in MB)
+        :param debug (bool): switch between normal and debug mode
         """
 
         # 01_prepare_data params
