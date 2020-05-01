@@ -15,6 +15,9 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
     * [Requirements](#requirements)
     * [Preparing datasets for training](#preparing-datasets-for-training)
 * [Project status](#project-status)
+    * [Implemented functionality](#implemented-functionality)
+    * [Current status](#current-status)
+    * [Future plans](#future-plans)
 * [Built With](#built-with)
 * [Contributing](#contributing)
 * [Versioning](#versioning)
@@ -111,7 +114,25 @@ __debug = False
 
 ## Project status
 
+### Implemented functionality
+ - `FeatureExtraction.py` converting raw singals to MFCC or MFSC features
+ - `DataOps.py` preprocessing and data preparation pipeline
+   - `DataLoader` raw data loading
+     - `PDTSCLoader` loader for raw [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html) dataset
+     - `OralLoader` loader for raw [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) dataset
+   - `DataPrep` automated preproc. pipeline for [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html) and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets
+   - `SpecAug` data augmentation
+ - `Model.py` character-level Acoustic Model (AM)
+   - Convolutional, GRU recurrent and Feed-Forward layers
+   - Connectionist Temporal Classification (CTC)
+   - Learning rate decay
+   - Early stopping
+   - Batch Normalization
+   
+### Current status
 Currently the project is in the Data Augmentation implementation and testing stages.
+
+### Future plans
 
 ## Contributing
 
