@@ -15,6 +15,9 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
     * [Requirements](#requirements)
     * [Preparing datasets for training](#preparing-datasets-for-training)
 * [Project status](#project-status)
+    * [Implemented functionality](#implemented-functionality)
+    * [Current status](#current-status)
+    * [Future plans](#future-plans)
 * [Built With](#built-with)
 * [Contributing](#contributing)
 * [Versioning](#versioning)
@@ -41,22 +44,95 @@ conda env create -f environment.yml
 ```
 
 ### Preparing datasets for training
-In order to train the network, you need to have a speech dataset. 
+In order to train the network, you need to have a speech dataset transcripts in czech language. 
 In this project, training was done on aforementioned [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html)
 and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets. 
-For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape,
-which is done through the following steps:
+For these to work, they need to be preprocessed and transformed into MFCC/MFSC feature structures of correct shape 
+and encoded into .tfrecord format, which is done by calling the `DataPrep` class from `DataOps.py`. 
 
-1. prepare_data.py
-2. feature_length_range.py
-3. sort_data.py
-4. numpy_to_tfrecord.py
+Example for calling `DataPrep` on raw PDTSC dataset files with default preprocessing settings:
 
-TODO: connect these to one DataTransformation class
+```
+audio_folder = "path/to/PDTSC/folder/raw/audio/"
+transcript_folder = "path/to/PDTSC/folder/raw/transcripts/"
+save_folder = 'path/to/output/folder'
+
+dp = DataPrep(audio_folder, transcript_folder, save_folder)
+
+dp.run()
+```
+__Mandatory arguments in `DataPrep` class:__
+ - __audio_folder__ _(string)_: path to folder with raw audio files (.wav or .ogg)
+ - __transcript_folder__ _(string)_: path to folder with raw transcript files (.txt)
+ - __save_folder__ _(string)_: path to folder in which to save the preprocessed data
+
+__Optional keyword arguments in `DataPrep` class:__
+ - __dataset__ _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
+ - __feature_type__ _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
+ - __label_type__ _(string)_: type of labels (so far only "unigram" is implemented)
+ - __repeated__ _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
+ - __energy__ _(bool)_: whether energy feature should be included into feature matrix
+ - __deltas__ _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
+ - __nbanks__ _(int)_: number of mel-scaled filter banks
+ - __filter_nan__ _(bool)_: whether to filter-out inputs with NaN values
+ - __sort__ _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
+ - __label_max_duration__ _(float)_: maximum time duration of the audio utterances
+ - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (value between 0. and 1.)
+ - __min_frame_length__ _(int)_: signals with less time-frames will be excluded
+ - __max_frame_length__ _(int)_: signals with more time-frames will be excluded
+ - __mode__ _(string)_: whether to copy or move the not excluded files to a new folder
+ - __feature_names__ _(string)_: part of filename that all feature files have in common 
+ - __label_names__ _(string)_: part of filename that all label files have in common
+ - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (value between 0. and 1.)
+ - __train_shard_size__ _(int)_: approximate tfrecord shard sizes for training data (in MB)
+ - __test_shard_size__ _(int)_: approximate tfrecord shard sizes for testing data (in MB)
+ - __debug__ _(bool)_: switch between normal and debug mode
+
+__Default/Allowed values of the keyword arguments in `DataPrep` class:__
+```
+__datasets = ("pdtsc", "oral")  # default choice: [0]
+__feature_types = ("MFSC", "MFCC")  # default choice: [0]
+__label_types = ("unigram", "bigram")  # default choice: [0]
+__repeated = False
+__energy = True
+__deltas = (2, 2)
+__nbanks = 40
+__filter_nan = True
+__sort = False
+__label_max_duration = 10.0
+__speeds = (1.0, )
+__min_frame_length = 100
+__max_frame_length = 3000
+__modes = ('copy', 'move')  # default choice: [0]
+__feature_names = 'cepstrum'
+__label_names = 'transcript'
+__tt_split_ratio = 0.9
+__train_shard_size = 2**10
+__test_shard_size = 2**7
+__debug = False
+```
 
 ## Project status
 
+### Implemented functionality
+ - `FeatureExtraction.py` converting raw singals to MFCC or MFSC features
+ - `DataOps.py` preprocessing and data preparation pipeline
+   - `DataLoader` raw data loading
+     - `PDTSCLoader` loader for raw [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html) dataset
+     - `OralLoader` loader for raw [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) dataset
+   - `DataPrep` automated preproc. pipeline for [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html) and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets
+   - `SpecAug` data augmentation
+ - `Model.py` character-level Acoustic Model (AM)
+   - Convolutional, GRU recurrent and Feed-Forward layers
+   - Connectionist Temporal Classification (CTC)
+   - Learning rate decay
+   - Early stopping
+   - Batch Normalization
+   
+### Current status
 Currently the project is in the Data Augmentation implementation and testing stages.
+
+### Future plans
 
 ## Contributing
 
