@@ -13,13 +13,11 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 ## Table of contents
 * [Getting Started](#getting-started)
     * [Requirements](#requirements)
-    * [Preparing datasets for training](#preparing-datasets-for-training)
-* [Project status](#project-status)
-    * [Implemented functionality](#implemented-functionality)
-    * [Current status](#current-status)
-    * [Future plans](#future-plans)
-* [Built With](#built-with)
-* [Contributing](#contributing)
+    * [Preparing Datasets for Training](#preparing-datasets-for-training)
+* [Project Status](#project-status)
+    * [Implemented Functionality](#implemented-functionality)
+    * [Currently Working on](#currently-working-on)
+    * [Future Plans](#future-plans)
 * [Versioning](#versioning)
 * [Authors](#authors)
 * [License](#license)
@@ -43,7 +41,7 @@ Once conda is installed, all you have to do is open Anaconda Prompt and input:
 conda env create -f environment.yml
 ```
 
-### Preparing datasets for training
+### Preparing Datasets for Training
 In order to train the network, you need to have a speech dataset transcripts in czech language. 
 In this project, training was done on aforementioned [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html)
 and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets. 
@@ -77,15 +75,17 @@ __Optional keyword arguments in `DataPrep` class:__
  - __filter_nan__ _(bool)_: whether to filter-out inputs with NaN values
  - __sort__ _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
  - __label_max_duration__ _(float)_: maximum time duration of the audio utterances
- - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (value between 0. and 1.)
+ - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (between 0. and 1.)
  - __min_frame_length__ _(int)_: signals with less time-frames will be excluded
  - __max_frame_length__ _(int)_: signals with more time-frames will be excluded
  - __mode__ _(string)_: whether to copy or move the not excluded files to a new folder
+ - __delete_unused__ _(bool)_: whether to delete files that were unused in the final dataset
  - __feature_names__ _(string)_: part of filename that all feature files have in common 
  - __label_names__ _(string)_: part of filename that all label files have in common
- - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (value between 0. and 1.)
+ - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (between 0. and 1.)
  - __train_shard_size__ _(int)_: approximate tfrecord shard sizes for training data (in MB)
  - __test_shard_size__ _(int)_: approximate tfrecord shard sizes for testing data (in MB)
+ - __delete_converted__ _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
  - __debug__ _(bool)_: switch between normal and debug mode
 
 __Default/Allowed values of the keyword arguments in `DataPrep` class:__
@@ -104,17 +104,19 @@ __speeds = (1.0, )
 __min_frame_length = 100
 __max_frame_length = 3000
 __modes = ('copy', 'move')  # default choice: [0]
+__delete_unused = False
 __feature_names = 'cepstrum'
 __label_names = 'transcript'
 __tt_split_ratio = 0.9
 __train_shard_size = 2**10
 __test_shard_size = 2**7
+__delete_converted = False
 __debug = False
 ```
 
-## Project status
+## Project Status
 
-### Implemented functionality
+### Implemented Functionality
  - `FeatureExtraction.py` converting raw singals to MFCC or MFSC features
  - `DataOps.py` preprocessing and data preparation pipeline
    - `DataLoader` raw data loading
@@ -129,15 +131,12 @@ __debug = False
    - Early stopping
    - Batch Normalization
    
-### Current status
+### Currently Working on
 Currently the project is in the Data Augmentation implementation and testing stages.
 
-### Future plans
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
-
+### Future Plans
+ - Better pipeline for DataPrep to reduce drive space requirements 
+ 
 ## Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/tags). 
@@ -145,8 +144,7 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 ## Authors
 
 * **Martin Vejvar** - *Core developer* - [vejvarm](https://github.com/vejvarm)
-
-See also the list of [contributors](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/contributors) who participated in this project.
+* **Dovzhenko Nikita** - *Supporting developer*
 
 ## License
 
