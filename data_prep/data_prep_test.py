@@ -11,6 +11,8 @@ if __name__ == '__main__':
                   speeds=(0.9, 1.0),
                   train_shard_size=10,
                   mode="move",
+                  delete_unused=True,
+                  delete_converted=True,
                   debug=True)
 
     dp.run()
