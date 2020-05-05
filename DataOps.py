@@ -764,21 +764,23 @@ class DataPrep:
     __min_frame_length = 100
     __max_frame_length = 3000
     __modes = ('copy', 'move')
+    __delete_unused = False
     __feature_names = 'cepstrum'
     __label_names = 'transcript'
     __tt_split_ratio = 0.9
     __train_shard_size = 2**10
     __test_shard_size = 2**7
+    __delete_converted = False
     __debug = False
 
     def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__datasets[0],
                  feature_type=__feature_types[0], label_type=__label_types[0], repeated=__repeated,
                  energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
                  label_max_duration=10.0, speeds=(1.0, ), min_frame_length=__min_frame_length,
-                 max_frame_length=__max_frame_length, mode=__modes[0], feature_names=__feature_names,
-                 label_names=__label_names, tt_split_ratio=__tt_split_ratio,
+                 max_frame_length=__max_frame_length, mode=__modes[0], delete_unused=__delete_unused,
+                 feature_names=__feature_names, label_names=__label_names, tt_split_ratio=__tt_split_ratio,
                  train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
-                 debug=__debug):
+                 delete_converted=__delete_converted, debug=__debug):
         """ End-to-end data preparation of raw features and labels into tfrecord files ready to be fed into the AM
 
         :param audio_folder (string): path to folder with raw audio files (.wav or .ogg)
@@ -798,11 +800,13 @@ class DataPrep:
         :param min_frame_length (int): signals with less time-frames will be excluded
         :param max_frame_length (int): signals with more time-frames will be excluded
         :param mode (string): whether to copy or move the not excluded files to a new folder
+        :param delete_unused (bool): whether to delete files that were unused in the final dataset
         :param feature_names (string): part of filename that all feature files have in common
         :param label_names (string): part of filename that all label files have in common
         :param tt_split_ratio (float): split ratio of training and testing data files (value between 0. and 1.)
         :param train_shard_size (int): approximate tfrecord shard sizes for training data (in MB)
         :param test_shard_size (int): approximate tfrecord shard sizes for testing data (in MB)
+        :param delete_converted (bool): whether to delete .npy shard folders that were already converted to .tfrecords
         :param debug (bool): switch between normal and debug mode
         """
 
@@ -851,6 +855,7 @@ class DataPrep:
         self.min_frame_length = if_int(min_frame_length)
         self.max_frame_length = if_int(max_frame_length)
         self.mode = mode if if_str(mode) in self.__modes else self.__modes[0]
+        self.delete_unused = if_bool(delete_unused)
         self.feature_names = if_str(feature_names)
         self.label_names = if_str(label_names)
 
@@ -858,6 +863,9 @@ class DataPrep:
         self.tt_split_ratio = if_float(tt_split_ratio)  # TODO: range between 0. and 1.
         self.train_shard_size = train_shard_size
         self.test_shard_size = test_shard_size
+
+        # 04_numpy_to_tfrecord
+        self.delete_converted = if_bool(delete_converted)
 
     @staticmethod
     def _get_file_paths(audio_folder, transcript_folder):
@@ -1060,6 +1068,11 @@ class DataPrep:
                     else:
                         raise ValueError("argument mode must be either 'copy' or 'move'")
 
+        # Delete remaining unmoved files
+        if self.delete_unused:
+            LOGGER.info(f"Removing remaining files and folder at path: {self.full_save_path}.")
+            shutil.rmtree(self.full_save_path, ignore_errors=True)
+
         self.full_save_path = save_path
         LOGGER.info(f"Full save path changed to: {self.full_save_path}")
         LOGGER.info("Finished.")
@@ -1198,8 +1211,21 @@ class DataPrep:
 
             writer.close()
 
+            if self.delete_converted:
+                LOGGER.info(f"Removing shard folder with .npy files at path: {path}")
+                shutil.rmtree(path, ignore_errors=True)
+
             LOGGER.debug("Data written to {}".format(tfrecord_path))
         LOGGER.info(f"All shards converted to tfrecords and saved to folder {output_folder}")
+
+        if self.delete_converted:
+            LOGGER.info(f"Removing empty folders.")
+            for root, _, files in os.walk(self.full_save_path, topdown=False):
+                try:
+                    os.rmdir(root)
+                    LOGGER.debug(f"Path {root} DELETED (was empty).")
+                except OSError:
+                    LOGGER.warning(f"Path {root} NOT DELETED (was not empty).")
 
     def run(self):
         LOGGER.info("01_prepare_data")
