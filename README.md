@@ -14,6 +14,8 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 * [Getting Started](#getting-started)
     * [Requirements](#requirements)
     * [Preparing Datasets for Training](#preparing-datasets-for-training)
+    * [Training](#training)
+    * [Production](#production)
 * [Project Status](#project-status)
     * [Implemented Functionality](#implemented-functionality)
     * [Currently Working on](#currently-working-on)
@@ -112,6 +114,127 @@ __train_shard_size = 2**10
 __test_shard_size = 2**7
 __delete_converted = False
 __debug = False
+```
+
+### Training
+Starting the training process itself is quite simple. Just run `main.py` with desired settings which
+are determined by the [FLAGS.py](FLAGS.py) file. The following params can be changed and tweaked:
+
+```
+    logger_level = "INFO"
+    load_dir = "path/to/preprocesses/data/load/directory/"
+    save_dir = "./results/"
+    save_config_as = "FLAGS.py"
+    checkpoint_path = None
+
+    num_runs = 5
+    max_epochs = 20
+    batch_size_per_GPU = 8
+
+    with open(load_dir + "data_config.json", "r") as f:
+        dc = json.load(f)
+        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+        num_features = dc["num_features"]  # 123
+        min_time = dc["min_time"]  # 100
+        max_time = dc["max_time"]  # 3000
+    buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
+    shuffle_seed = 42
+
+    bucket_width = 100
+
+    # MODEL
+    save_architecture_image = False
+    show_shapes = True
+
+    weight_init_mean = 0.0
+    weight_init_stddev = 0.0001
+
+    # Architecture:
+    ff_first_params = {
+        'use': False,
+        'num_units': [128, 64],
+        'batch_norm': False,
+        'drop_rates': [0.],
+    }
+    conv_params = {
+        'use': True,
+        'channels': [32, 64, 128, 256],
+        'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
+        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
+        'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
+        'padding': 'same',
+        'data_format': 'channels_last',
+        'batch_norm': True,
+        'drop_rates': [0., 0., 0., 0.],
+    }
+    bn_momentum = 0.9
+    relu_clip_val = 20
+    relu_alpha = 0.2
+    rnn_params = {
+        'use': True,
+        'num_units': [512, 512],
+        'batch_norm': True,
+        'drop_rates': [0., 0.],
+    }
+    ff_params = {
+        'use': True,
+        'num_units': [256, 128],
+        'batch_norm': True,
+        'drop_rates': [0., 0.],
+    }
+
+    # Optimizer:
+    lr = 0.001
+    lr_decay = True
+    lr_decay_rate = 0.8
+    lr_decay_epochs = 1
+    epsilon = 0.1
+    amsgrad = True
+
+    # Data Augmentation (in pipeline):
+    data_aug = {
+        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'bandwidth_time': (10, 100),
+        'bandwidth_freq': (10, 30),
+        'max_percent_time': 0.2,
+        'max_percent_freq': 1.,
+    }
+
+
+    # Decoder:
+    beam_width = 256
+    top_paths = 1  # > 1 not implemented
+
+    # Early Stopping:
+    patience_epochs = 3
+```
+
+### Production
+__TODO__
+```
+class PREDICTION_FLAGS(FLAGS):
+
+    recording = {
+        "rate": 16000,
+        "updates_per_second": 10,
+        "channels": 1,
+        "max_record_seconds": 30,
+    }
+
+    features = {
+        "type": "MFSC",
+        "energy": True,
+        "deltas": (2, 2),
+    }
+
+    model = {
+        "path": "path/to/trained/model.h5",
+    }
+
+    # Prediction
+    beam_width = 256
+    top_paths = 5
 ```
 
 ## Project Status
