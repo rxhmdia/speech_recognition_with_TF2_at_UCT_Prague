@@ -1254,7 +1254,7 @@ class DataPrep:
 
     # 05_save_data_config.json
     def save_data_config(self):
-        for key, config_dict in self._data_config_dict:
+        for key, config_dict in self._data_config_dict.items():
             data_config_path = f"{self.full_save_path[:-1]}_tfrecord/{key}/data_config.json"
             with open(data_config_path, "w") as f:
                 LOGGER.info(f"Saving data_config to path: {data_config_path}")
