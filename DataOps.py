@@ -1,3 +1,4 @@
+import json
 import re
 import os
 import shutil
@@ -867,6 +868,10 @@ class DataPrep:
         # 04_numpy_to_tfrecord
         self.delete_converted = if_bool(delete_converted)
 
+        # for data_config.json
+        self._num_features = None
+        self._data_config_dict = dict()
+
     @staticmethod
     def _get_file_paths(audio_folder, transcript_folder):
         audio_files = [os.path.splitext(f) for f in os.listdir(audio_folder)
@@ -936,7 +941,6 @@ class DataPrep:
                 feat_ext = FeatureExtractor(audio, fs, feature_type=self.feature_type, energy=self.energy,
                                             deltas=self.deltas, nbanks=self.nbanks)
                 cepstra = feat_ext.transform_data()  # list of 2D arrays
-
                 # filter out cepstra which are containing nan values
                 if self.filter_nan:
                     LOGGER.info(f"\tFiltering out NaN values")
@@ -985,7 +989,6 @@ class DataPrep:
                     # add (cepstrum_path, label_path, cepstrum_length) tuple into collective list for sorting
                     cepstra_length_list.append(
                         (loaded_cepstra_paths[j], loaded_label_paths[j], loaded_cepstra[j].shape[0]))
-
                 LOGGER.debug(f'files from {file_names[i]} transformed and saved into {os.path.abspath(save_path)}.')
 
             # sort cepstra and labels by time length (number of frames)
@@ -1007,6 +1010,9 @@ class DataPrep:
                         os.rmdir(os.path.join(save_path, folder))
                     except OSError:
                         LOGGER.warning("Folder {} is not empty! Can't delete.".format(os.path.join(save_path, folder)))
+        LOGGER.info(f"Save the number of features in cepstra.")
+        self._num_features = cepstra[0].shape[1]
+        LOGGER.debug(f"_num_features: {self._num_features}")
 
     # 02_feature_length_range.py
     def feature_length_range(self):
@@ -1117,16 +1123,28 @@ class DataPrep:
 
         return sorted_train_list, sorted_test_list
 
-    def move_to_shard_folders(self, sorted_list, shard_size=1024, subfolder=None):
+    def move_to_shard_folders(self, sorted_list, shard_size=1024, speed=1.0, subset=None):
         """
 
         :param sorted_list:
         :param shard_size: approximate size of folder shards in which the data is split in MBytes
-        :param subfolder: either "train" or "test"
+        :param speed: speed parameter of SpeedAug
+        :param subset: either "train" or "test"
         :return: None
         """
+        # data_config dictionary initialization for current speed
+        if not str(speed) in self._data_config_dict.keys():
+            LOGGER.info(f"Initializing _data_config_dict[{speed}]")
+            self._data_config_dict[str(speed)] = {"num_train_data": 0,
+                                                  "num_test_data": 0,
+                                                  "num_rest_data": 0,
+                                                  "num_features": self._num_features,
+                                                  "min_time": self.min_frame_length,
+                                                  "max_time": self.max_frame_length}
+
         data_len = len(sorted_list)
         data_size = sum(sfs[1] for sfs in sorted_list)
+        subfolder = f"{speed}/{subset}"
 
         byte_min_shard_size = shard_size * 1e6  # convert to Byte size
         max_num_shards = int(data_size // byte_min_shard_size + 1)
@@ -1148,6 +1166,12 @@ class DataPrep:
             new_label_name = '{0}-{1:0{2}d}.npy'.format(self.label_names, file_idx, num_data_digits)
             os.rename(feature_path, os.path.join(current_shard_folder, new_feature_name))
             os.rename(label_path, os.path.join(current_shard_folder, new_label_name))
+            if "train" in subset:
+                self._data_config_dict[str(speed)]["num_train_data"] += 1
+            elif "test" in subset:
+                self._data_config_dict[str(speed)]["num_test_data"] += 1
+            else:
+                self._data_config_dict[str(speed)]["num_rest_data"] += 1
             if current_shard_size < byte_min_shard_size:
                 file_idx += 1
                 current_shard_size += size
@@ -1157,6 +1181,7 @@ class DataPrep:
                 shard_idx += 1
                 current_shard_size = 0
         LOGGER.info(f"{subfolder} subfolder filled with sorted shards.")
+        LOGGER.debug(f"_data_config_dict[{speed}]: {self._data_config_dict[str(speed)]}")
 
     # 04_numpy_to_tfrecord.py
     @staticmethod
@@ -1227,6 +1252,14 @@ class DataPrep:
                 except OSError:
                     LOGGER.warning(f"Path {root} NOT DELETED (was not empty).")
 
+    # 05_save_data_config.json
+    def save_data_config(self):
+        for key, config_dict in self._data_config_dict.items():
+            data_config_path = f"{self.full_save_path[:-1]}_tfrecord/{key}/data_config.json"
+            with open(data_config_path, "w") as f:
+                LOGGER.info(f"Saving data_config to path: {data_config_path}")
+                json.dump(config_dict, f)
+
     def run(self):
         LOGGER.info("01_prepare_data")
         files = self._get_file_paths(self.audio_folder, self.transcript_folder)
@@ -1239,10 +1272,13 @@ class DataPrep:
         for speed in self.speeds:
             save_folder = os.path.join(self.full_save_path, str(speed))
             sorted_train_list, sorted_test_list = self._get_sorted_lists_by_file_size(save_folder)
-            self.move_to_shard_folders(sorted_train_list, self.train_shard_size, f"{speed}/train")
-            self.move_to_shard_folders(sorted_test_list, self.test_shard_size, f"{speed}/test")
+            self.move_to_shard_folders(sorted_train_list, self.train_shard_size, speed, "train")
+            self.move_to_shard_folders(sorted_test_list, self.test_shard_size, speed, "test")
 
         LOGGER.info("04_numpy_to_tfrecord")
         self.numpy_to_tfrecord()
+
+        LOGGER.info("05_save_data_config")
+        self.save_data_config()
 
         LOGGER.info("DataPrep finished!")

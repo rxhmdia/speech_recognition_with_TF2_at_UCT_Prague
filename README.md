@@ -13,13 +13,13 @@ Data Augmentation techniques, such as [SpecAugment](https://arxiv.org/abs/1904.0
 ## Table of contents
 * [Getting Started](#getting-started)
     * [Requirements](#requirements)
-    * [Preparing datasets for training](#preparing-datasets-for-training)
-* [Project status](#project-status)
-    * [Implemented functionality](#implemented-functionality)
-    * [Current status](#current-status)
-    * [Future plans](#future-plans)
-* [Built With](#built-with)
-* [Contributing](#contributing)
+    * [Preparing Datasets for Training](#preparing-datasets-for-training)
+    * [Training](#training)
+    * [Production](#production)
+* [Project Status](#project-status)
+    * [Implemented Functionality](#implemented-functionality)
+    * [Currently Working on](#currently-working-on)
+    * [Future Plans](#future-plans)
 * [Versioning](#versioning)
 * [Authors](#authors)
 * [License](#license)
@@ -43,7 +43,7 @@ Once conda is installed, all you have to do is open Anaconda Prompt and input:
 conda env create -f environment.yml
 ```
 
-### Preparing datasets for training
+### Preparing Datasets for Training
 In order to train the network, you need to have a speech dataset transcripts in czech language. 
 In this project, training was done on aforementioned [PDTSC 1.0](https://ufal.mff.cuni.cz/pdtsc1.0/en/index.html)
 and [ORAL2013](https://wiki.korpus.cz/doku.php/en:cnk:oral2013) datasets. 
@@ -62,31 +62,33 @@ dp = DataPrep(audio_folder, transcript_folder, save_folder)
 dp.run()
 ```
 __Mandatory arguments in `DataPrep` class:__
- - __audio_folder__ _(string)_: path to folder with raw audio files (.wav or .ogg)
- - __transcript_folder__ _(string)_: path to folder with raw transcript files (.txt)
- - __save_folder__ _(string)_: path to folder in which to save the preprocessed data
+ - `audio_folder` _(string)_: path to folder with raw audio files (.wav or .ogg)
+ - `transcript_folder` _(string)_: path to folder with raw transcript files (.txt)
+ - `save_folder` _(string)_: path to folder in which to save the preprocessed data
 
 __Optional keyword arguments in `DataPrep` class:__
- - __dataset__ _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
- - __feature_type__ _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
- - __label_type__ _(string)_: type of labels (so far only "unigram" is implemented)
- - __repeated__ _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
- - __energy__ _(bool)_: whether energy feature should be included into feature matrix
- - __deltas__ _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
- - __nbanks__ _(int)_: number of mel-scaled filter banks
- - __filter_nan__ _(bool)_: whether to filter-out inputs with NaN values
- - __sort__ _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
- - __label_max_duration__ _(float)_: maximum time duration of the audio utterances
- - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (value between 0. and 1.)
- - __min_frame_length__ _(int)_: signals with less time-frames will be excluded
- - __max_frame_length__ _(int)_: signals with more time-frames will be excluded
- - __mode__ _(string)_: whether to copy or move the not excluded files to a new folder
- - __feature_names__ _(string)_: part of filename that all feature files have in common 
- - __label_names__ _(string)_: part of filename that all label files have in common
- - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (value between 0. and 1.)
- - __train_shard_size__ _(int)_: approximate tfrecord shard sizes for training data (in MB)
- - __test_shard_size__ _(int)_: approximate tfrecord shard sizes for testing data (in MB)
- - __debug__ _(bool)_: switch between normal and debug mode
+ - `dataset` _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
+ - `feature_type` _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
+ - `label_type` _(string)_: type of labels (so far only "unigram" is implemented)
+ - `repeated` _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
+ - `energy` _(bool)_: whether energy feature should be included into feature matrix
+ - `deltas` _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
+ - `nbanks` _(int)_: number of mel-scaled filter banks
+ - `filter_nan` _(bool)_: whether to filter-out inputs with NaN values
+ - `sort` _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
+ - `label_max_duration` _(float)_: maximum time duration of the audio utterances
+ - `speeds` _(Tuple[float, ...])_: speed augmentation multipliers (between 0. and 1.)
+ - `min_frame_length` _(int)_: signals with less time-frames will be excluded
+ - `max_frame_length` _(int)_: signals with more time-frames will be excluded
+ - `mode` _(string)_: whether to copy or move the not excluded files to a new folder
+ - `delete_unused` _(bool)_: whether to delete files that were unused in the final dataset
+ - `feature_names` _(string)_: part of filename that all feature files have in common 
+ - `label_names` _(string)_: part of filename that all label files have in common
+ - `tt_split_ratio` _(float)_: split ratio of training and testing data files (between 0. and 1.)
+ - `train_shard_size` _(int)_: approximate tfrecord shard sizes for training data (in MB)
+ - `test_shard_size` _(int)_: approximate tfrecord shard sizes for testing data (in MB)
+ - `delete_converted` _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
+ - `debug` _(bool)_: switch between normal and debug mode
 
 __Default/Allowed values of the keyword arguments in `DataPrep` class:__
 ```
@@ -104,17 +106,128 @@ __speeds = (1.0, )
 __min_frame_length = 100
 __max_frame_length = 3000
 __modes = ('copy', 'move')  # default choice: [0]
+__delete_unused = False
 __feature_names = 'cepstrum'
 __label_names = 'transcript'
 __tt_split_ratio = 0.9
 __train_shard_size = 2**10
 __test_shard_size = 2**7
+__delete_converted = False
 __debug = False
 ```
 
-## Project status
+### Training
+Starting the training process itself is quite simple. Just run `main.py` with desired settings which
+are determined by the [FLAGS.py](FLAGS.py) file. The following params can be changed and tweaked:
 
-### Implemented functionality
+ - `logger_level` _(string)_: verbosity level of the console logger ("DEBUG", "__INFO__", "WARNING")
+ - `load_dir` _(string)_:  path to directory with the preprocessed data for training 
+ - `save_dir` _(string)_: path to directory for saving model checkpoints and other data
+ - `save_config_as` _(string)_: name of the config file backup in the save_dir (__"FLAGS.py"__)
+ - `checkpoint_path` _(string)_: path to _model.h5_ checkpoint file for initialization from trained model
+ - `num_runs` _(int)_: number of independent runs (repeats) of the entire training process (__5__)
+ - `max_epochs` _(int)_: maximum number of epochs in each run (__20__)
+ - `batch_size_per_GPU` _(int)_: size of training minibatches for each working GPU (__8__)
+ - `shuffle_seed` _(int)_: seed for reproducing random shuffling order (__42__)
+ - `bucket_width` _(int)_: size of buckets in which similar length utterances are grouped (__100__)
+```
+    # MODEL
+    save_architecture_image = False
+    show_shapes = True
+
+    weight_init_mean = 0.0
+    weight_init_stddev = 0.0001
+
+    # Architecture:
+    ff_first_params = {
+        'use': False,
+        'num_units': [128, 64],
+        'batch_norm': False,
+        'drop_rates': [0.],
+    }
+    conv_params = {
+        'use': True,
+        'channels': [32, 64, 128, 256],
+        'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
+        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
+        'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
+        'padding': 'same',
+        'data_format': 'channels_last',
+        'batch_norm': True,
+        'drop_rates': [0., 0., 0., 0.],
+    }
+    bn_momentum = 0.9
+    relu_clip_val = 20
+    relu_alpha = 0.2
+    rnn_params = {
+        'use': True,
+        'num_units': [512, 512],
+        'batch_norm': True,
+        'drop_rates': [0., 0.],
+    }
+    ff_params = {
+        'use': True,
+        'num_units': [256, 128],
+        'batch_norm': True,
+        'drop_rates': [0., 0.],
+    }
+
+    # Optimizer:
+    lr = 0.001
+    lr_decay = True
+    lr_decay_rate = 0.8
+    lr_decay_epochs = 1
+    epsilon = 0.1
+    amsgrad = True
+
+    # Data Augmentation (in pipeline):
+    data_aug = {
+        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'bandwidth_time': (10, 100),
+        'bandwidth_freq': (10, 30),
+        'max_percent_time': 0.2,
+        'max_percent_freq': 1.,
+    }
+
+
+    # Decoder:
+    beam_width = 256
+    top_paths = 1  # > 1 not implemented
+
+    # Early Stopping:
+    patience_epochs = 3
+```
+
+### Production
+__TODO__
+```
+class PREDICTION_FLAGS(FLAGS):
+
+    recording = {
+        "rate": 16000,
+        "updates_per_second": 10,
+        "channels": 1,
+        "max_record_seconds": 30,
+    }
+
+    features = {
+        "type": "MFSC",
+        "energy": True,
+        "deltas": (2, 2),
+    }
+
+    model = {
+        "path": "path/to/trained/model.h5",
+    }
+
+    # Prediction
+    beam_width = 256
+    top_paths = 5
+```
+
+## Project Status
+
+### Implemented Functionality
  - `FeatureExtraction.py` converting raw singals to MFCC or MFSC features
  - `DataOps.py` preprocessing and data preparation pipeline
    - `DataLoader` raw data loading
@@ -129,15 +242,12 @@ __debug = False
    - Early stopping
    - Batch Normalization
    
-### Current status
+### Currently Working on
 Currently the project is in the Data Augmentation implementation and testing stages.
 
-### Future plans
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
-
+### Future Plans
+ - Better pipeline for DataPrep to reduce drive space requirements 
+ 
 ## Versioning
 
 We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/tags). 
@@ -145,12 +255,11 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 ## Authors
 
 * **Martin Vejvar** - *Core developer* - [vejvarm](https://github.com/vejvarm)
-
-See also the list of [contributors](https://github.com/vejvarm/speech_recognition_with_TF2_at_UCT_Prague/contributors) who participated in this project.
+* **Dovzhenko Nikita** - *Supporting developer*
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the Academic Free License version 3.0 - see the [LICENSE.md](LICENSE.md) file for details
 
 ## Acknowledgments
 * [How to write a good README for your GitHub project](https://bulldogjob.com/news/449-how-to-write-a-good-readme-for-your-github-project)

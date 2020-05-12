@@ -13,6 +13,7 @@ class FLAGS:
 
     logger_level = "INFO"
 
+    # load_dir = None
     load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
@@ -21,21 +22,22 @@ class FLAGS:
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
-    # TODO: Tady Martin Minulovič
-    #  nyní trénujeme na DA datasetu s rychlostmi (0.9, 1.0 a 1.1)
 
     num_runs = 5
     max_epochs = 20
     batch_size_per_GPU = 8
 
     # noinspection DuplicatedCode
-    with open(load_dir + "data_config.json", "r") as f:
-        dc = json.load(f)
-        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
-        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
-        num_features = dc["num_features"]  # 123
-        min_time = dc["min_time"]  # 100
-        max_time = dc["max_time"]  # 3000
+    if load_dir:
+        with open(load_dir + "data_config.json", "r") as f:
+            dc = json.load(f)
+            num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+            num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+            num_features = dc["num_features"]  # 123
+            min_time = dc["min_time"]  # 100
+            max_time = dc["max_time"]  # 3000
+    else:
+        print("No load_dir specified. Can't load data_config.json. Be sure that it's not needed in your task.")
     buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
 
