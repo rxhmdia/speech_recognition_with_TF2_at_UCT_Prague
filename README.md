@@ -62,33 +62,33 @@ dp = DataPrep(audio_folder, transcript_folder, save_folder)
 dp.run()
 ```
 __Mandatory arguments in `DataPrep` class:__
- - __audio_folder__ _(string)_: path to folder with raw audio files (.wav or .ogg)
- - __transcript_folder__ _(string)_: path to folder with raw transcript files (.txt)
- - __save_folder__ _(string)_: path to folder in which to save the preprocessed data
+ - `audio_folder` _(string)_: path to folder with raw audio files (.wav or .ogg)
+ - `transcript_folder` _(string)_: path to folder with raw transcript files (.txt)
+ - `save_folder` _(string)_: path to folder in which to save the preprocessed data
 
 __Optional keyword arguments in `DataPrep` class:__
- - __dataset__ _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
- - __feature_type__ _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
- - __label_type__ _(string)_: type of labels (so far only "unigram" is implemented)
- - __repeated__ _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
- - __energy__ _(bool)_: whether energy feature should be included into feature matrix
- - __deltas__ _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
- - __nbanks__ _(int)_: number of mel-scaled filter banks
- - __filter_nan__ _(bool)_: whether to filter-out inputs with NaN values
- - __sort__ _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
- - __label_max_duration__ _(float)_: maximum time duration of the audio utterances
- - __speeds__ _(Tuple[float, ...])_: speed augmentation multipliers (between 0. and 1.)
- - __min_frame_length__ _(int)_: signals with less time-frames will be excluded
- - __max_frame_length__ _(int)_: signals with more time-frames will be excluded
- - __mode__ _(string)_: whether to copy or move the not excluded files to a new folder
- - __delete_unused__ _(bool)_: whether to delete files that were unused in the final dataset
- - __feature_names__ _(string)_: part of filename that all feature files have in common 
- - __label_names__ _(string)_: part of filename that all label files have in common
- - __tt_split_ratio__ _(float)_: split ratio of training and testing data files (between 0. and 1.)
- - __train_shard_size__ _(int)_: approximate tfrecord shard sizes for training data (in MB)
- - __test_shard_size__ _(int)_: approximate tfrecord shard sizes for testing data (in MB)
- - __delete_converted__ _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
- - __debug__ _(bool)_: switch between normal and debug mode
+ - `dataset` _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
+ - `feature_type` _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
+ - `label_type` _(string)_: type of labels (so far only "unigram" is implemented)
+ - `repeated` _(bool)_: whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
+ - `energy` _(bool)_: whether energy feature should be included into feature matrix
+ - `deltas` _(Tuple[int, int])_: area from which to calculate differences for deltas and delta-deltas
+ - `nbanks` _(int)_: number of mel-scaled filter banks
+ - `filter_nan` _(bool)_: whether to filter-out inputs with NaN values
+ - `sort` _(bool)_: whether to sort resulting cepstra by file size (i.e. audio length)
+ - `label_max_duration` _(float)_: maximum time duration of the audio utterances
+ - `speeds` _(Tuple[float, ...])_: speed augmentation multipliers (between 0. and 1.)
+ - `min_frame_length` _(int)_: signals with less time-frames will be excluded
+ - `max_frame_length` _(int)_: signals with more time-frames will be excluded
+ - `mode` _(string)_: whether to copy or move the not excluded files to a new folder
+ - `delete_unused` _(bool)_: whether to delete files that were unused in the final dataset
+ - `feature_names` _(string)_: part of filename that all feature files have in common 
+ - `label_names` _(string)_: part of filename that all label files have in common
+ - `tt_split_ratio` _(float)_: split ratio of training and testing data files (between 0. and 1.)
+ - `train_shard_size` _(int)_: approximate tfrecord shard sizes for training data (in MB)
+ - `test_shard_size` _(int)_: approximate tfrecord shard sizes for testing data (in MB)
+ - `delete_converted` _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
+ - `debug` _(bool)_: switch between normal and debug mode
 
 __Default/Allowed values of the keyword arguments in `DataPrep` class:__
 ```
@@ -120,29 +120,17 @@ __debug = False
 Starting the training process itself is quite simple. Just run `main.py` with desired settings which
 are determined by the [FLAGS.py](FLAGS.py) file. The following params can be changed and tweaked:
 
+ - `logger_level` _(string)_: verbosity level of the console logger ("DEBUG", "__INFO__", "WARNING")
+ - `load_dir` _(string)_:  path to directory with the preprocessed data for training 
+ - `save_dir` _(string)_: path to directory for saving model checkpoints and other data
+ - `save_config_as` _(string)_: name of the config file backup in the save_dir (__"FLAGS.py"__)
+ - `checkpoint_path` _(string)_: path to _model.h5_ checkpoint file for initialization from trained model
+ - `num_runs` _(int)_: number of independent runs (repeats) of the entire training process (__5__)
+ - `max_epochs` _(int)_: maximum number of epochs in each run (__20__)
+ - `batch_size_per_GPU` _(int)_: size of training minibatches for each working GPU (__8__)
+ - `shuffle_seed` _(int)_: seed for reproducing random shuffling order (__42__)
+ - `bucket_width` _(int)_: size of buckets in which similar length utterances are grouped (__100__)
 ```
-    logger_level = "INFO"
-    load_dir = "path/to/preprocesses/data/load/directory/"
-    save_dir = "./results/"
-    save_config_as = "FLAGS.py"
-    checkpoint_path = None
-
-    num_runs = 5
-    max_epochs = 20
-    batch_size_per_GPU = 8
-
-    with open(load_dir + "data_config.json", "r") as f:
-        dc = json.load(f)
-        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
-        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
-        num_features = dc["num_features"]  # 123
-        min_time = dc["min_time"]  # 100
-        max_time = dc["max_time"]  # 3000
-    buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
-    shuffle_seed = 42
-
-    bucket_width = 100
-
     # MODEL
     save_architecture_image = False
     show_shapes = True
