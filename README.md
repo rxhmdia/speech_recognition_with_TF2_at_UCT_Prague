@@ -130,21 +130,16 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
  - `batch_size_per_GPU` _(int)_: size of training minibatches for each working GPU (__8__)
  - `shuffle_seed` _(int)_: seed for reproducing random shuffling order (__42__)
  - `bucket_width` _(int)_: size of buckets in which similar length utterances are grouped (__100__)
+ - `save_architecture_image` _(bool)_: whether to save model architecture to `save_dir`
+ - `show_shapes` _(bool)_: whether to also show model values for layer shapes in architecture image
+ - `weight_init_mean` _(float)_: model weight random initialization mean value (__0.0__)
+ - `weight_init_stddev` _(float)_: model weight random initialization standard deviation value (__0.0001__)
+ - `ff_first_params` _(dict)_: dictionary for allowing/tweaking params for Dense layers at start of the model 
+    - `use` _(bool)_: whether to include Dense layers at the start of the model or not (__False__)
+    - `num_units` _(List[int])_: List/Tuple signifying number of layers and their number of hidden units
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Dense layer
+    - `drop_rates` _(List[float])_: List/Tuple of dropout rates in each Dense layer
 ```
-    # MODEL
-    save_architecture_image = False
-    show_shapes = True
-
-    weight_init_mean = 0.0
-    weight_init_stddev = 0.0001
-
-    # Architecture:
-    ff_first_params = {
-        'use': False,
-        'num_units': [128, 64],
-        'batch_norm': False,
-        'drop_rates': [0.],
-    }
     conv_params = {
         'use': True,
         'channels': [32, 64, 128, 256],
