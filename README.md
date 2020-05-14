@@ -120,6 +120,9 @@ __debug = False
 Starting the training process itself is quite simple. Just run `main.py` with desired settings which
 are determined by the [FLAGS.py](FLAGS.py) file. The following params can be changed and tweaked:
 
+<details>
+ <summary>Show list of all params.</summary>
+ 
  - `logger_level` _(string)_: verbosity level of the console logger ("DEBUG", "__INFO__", "WARNING")
  - `load_dir` _(string)_:  path to directory with the preprocessed data for training 
  - `save_dir` _(string)_: path to directory for saving model checkpoints and other data
@@ -134,23 +137,28 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
  - `show_shapes` _(bool)_: whether to also show model values for layer shapes in architecture image
  - `weight_init_mean` _(float)_: model weight random initialization mean value (__0.0__)
  - `weight_init_stddev` _(float)_: model weight random initialization standard deviation value (__0.0001__)
- - `ff_first_params` _(dict)_: dictionary for allowing/tweaking params for Dense layers at start of the model 
+ - `ff_first_params` _(Dict)_: params for allowing/tweaking Dense layers at start of the model 
     - `use` _(bool)_: whether to include Dense layers at the start of the model or not (__False__)
     - `num_units` _(List[int])_: List/Tuple signifying number of layers and their number of hidden units
     - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Dense layer
     - `drop_rates` _(List[float])_: List/Tuple of dropout rates in each Dense layer
+ - `conv_params` _(Dict)_: params for allowing/tweaking Convolutional layers at start of the model
+    - `use` _(bool)_: wheter to include Convolutional layers at the start of the model or not (__True__)
+    - `channels` _(List[int])_: List/Tuple for setting number of filters (channels) in each layer
+    - `kernels` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for sizes of filters
+    - `strides` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for strides of filters
+    - `dilation_rates` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for filter dilations
+    - `padding` _(str)_: whether/how to pad at the sides of the input 
+        - ___'same'___ (default): padding at sides so that inp shape == out shape (not regarding strides)
+        - __'valid'__: no padding at sides, meaning that output shape depends on kernel sizes
+    - `data_format` _(str)_: order of dimensions in input data
+        - __'channels_first'__: "NCHW" ... channels are in the first dimension (N is batch size)
+        - ___'channels_last'___ (default): "NHWC" ... channels are in the last dimension (N is batch size)
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Conv layer
+    - `drop_rates` (_List[float]_): List/Tuple of dropout rates in each Conv layer
+    
+</details>
 ```
-    conv_params = {
-        'use': True,
-        'channels': [32, 64, 128, 256],
-        'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
-        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
-        'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
-        'padding': 'same',
-        'data_format': 'channels_last',
-        'batch_norm': True,
-        'drop_rates': [0., 0., 0., 0.],
-    }
     bn_momentum = 0.9
     relu_clip_val = 20
     relu_alpha = 0.2
