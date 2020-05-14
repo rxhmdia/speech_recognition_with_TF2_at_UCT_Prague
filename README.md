@@ -158,6 +158,7 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
     - `drop_rates` (_List[float]_): List/Tuple of dropout rates in each Conv layer
     
 </details>
+
 ```
     bn_momentum = 0.9
     relu_clip_val = 20
