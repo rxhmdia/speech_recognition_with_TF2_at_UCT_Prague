@@ -156,51 +156,36 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
         - ___'channels_last'___ (default): "NHWC" ... channels are in the last dimension (N is batch size)
     - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Conv layer
     - `drop_rates` (_List[float]_): List/Tuple of dropout rates in each Conv layer
-    
+ - `bn_momentum` _(float)_: momentum of Batch Normalization parameter updates (__0.9__)
+ - `relu_clip_val` _(float)_: if the ReLU output will be higher than this number, it will get clipped (__20.__)
+ - `relu_alpha` _(float)_: Leaky ReLU negative domain slope (__0.2__)
+ - `rnn_params` _(Dict)_: params for allowing/tweaking Bidirectional Recurrent layers (BGRU) in the model
+    - `use` _(bool)_: whether to include BGRU layers in the model (__True__)
+    - `num_units` (_List[int]_): number of BGRU layers and number of their hidden neurons
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after the BGRU layers (__True__)
+    - `drop_rates` _(List[float]): dropout rates in each BGRU layer
+ - `ff_params` _(Dict)_: params for allowing Dense (FF) layers after the BGRU layers (__True__)
+    - `use` _(bool)_: whether to include FF layers in the model (__True__)
+    - `num_units` (_List[int]_): number of FF layers and number of hidden units (neurons) in each of them
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after the FF layers (__True__)
+    - `drop_rates` _(List[float]): dropout rates in each FF layer
+ - `lr` _(float)_: learning rate of the optimizer (__0.001__)
+ - `lr_decay` _(bool)_: whether to exponentially decay learning rate during training (__True__)
+ - `lr_decay_rate` _(float)_: rate at which the learning rate decays (__0.8__)
+ - `lr_decay_epochs` _(int)_: how often will the learning rate be decayed (__1__)
+ - `epsilon` _(int)_: Adam optimizer parameter to prevent division by zero (__0.1__)
+ - `amsgrad` _(bool)_: Switch between Adam and AMSGrad optimizer (__True__ is for AMSGrad)
+ - `data_aug` _(Dict)_: Pipeline Data Augmentation parameter dictionary
+    - `mode` _(str)_: how many times to apply SpecAugment on input data ("0x", __"1x"__, "2x")
+    - `bandwidth_time` (_Tuple[int]_): time masking bandwidth range (__(10, 100)__)
+    - `bandwidth_freq` (_Tuple[int]_): frequency masking bandwidth range (__(10, 30)__)
+    - `max_percent_time` _(float)_: maximum time percentage that can be masked (__0.2__)
+    - `max_percent_freq` _(float)_: maximum frequency percentage that can be masekd (__1.0__)
+ - `beam_width` _(int)_: Beam Search decoder beam width (__256__)
+ - `top_paths` _(int)_: Number of best paths to be selected by Beam Search (__1__, >1 not supported)
+ - `patience_epochs` _(int)_: Early Stopping patience before prematurely ending the trainig run (__3__)
+
 </details>
-
-```
-    bn_momentum = 0.9
-    relu_clip_val = 20
-    relu_alpha = 0.2
-    rnn_params = {
-        'use': True,
-        'num_units': [512, 512],
-        'batch_norm': True,
-        'drop_rates': [0., 0.],
-    }
-    ff_params = {
-        'use': True,
-        'num_units': [256, 128],
-        'batch_norm': True,
-        'drop_rates': [0., 0.],
-    }
-
-    # Optimizer:
-    lr = 0.001
-    lr_decay = True
-    lr_decay_rate = 0.8
-    lr_decay_epochs = 1
-    epsilon = 0.1
-    amsgrad = True
-
-    # Data Augmentation (in pipeline):
-    data_aug = {
-        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
-        'bandwidth_time': (10, 100),
-        'bandwidth_freq': (10, 30),
-        'max_percent_time': 0.2,
-        'max_percent_freq': 1.,
-    }
-
-
-    # Decoder:
-    beam_width = 256
-    top_paths = 1  # > 1 not implemented
-
-    # Early Stopping:
-    patience_epochs = 3
-```
 
 ### Production
 __TODO__
