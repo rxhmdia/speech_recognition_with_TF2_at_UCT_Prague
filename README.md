@@ -96,7 +96,9 @@ dp.run()
  - `debug` _(bool)_: switch between normal and debug mode
 </details>
 
-__Default/Allowed values of the keyword arguments in `DataPrep` class:__
+<details>
+<summary><strong>Default/Allowed values of the keyword arguments in <code>DataPrep</code> class:</strong></summary>
+
 ```
 __datasets = ("pdtsc", "oral")  # default choice: [0]
 __feature_types = ("MFSC", "MFCC")  # default choice: [0]
@@ -121,6 +123,7 @@ __test_shard_size = 2**7
 __delete_converted = False
 __debug = False
 ```
+</details>
 
 ### Training
 Starting the training process itself is quite simple. Just run `main.py` with desired settings which
