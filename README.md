@@ -61,12 +61,17 @@ dp = DataPrep(audio_folder, transcript_folder, save_folder)
 
 dp.run()
 ```
-__Mandatory arguments in `DataPrep` class:__
+<details>
+<summary><strong>Mandatory arguments in <code>DataPrep</code> class:</strong></summary>
+
  - `audio_folder` _(string)_: path to folder with raw audio files (.wav or .ogg)
  - `transcript_folder` _(string)_: path to folder with raw transcript files (.txt)
  - `save_folder` _(string)_: path to folder in which to save the preprocessed data
+</details>
 
-__Optional keyword arguments in `DataPrep` class:__
+<details>
+<summary><strong>Optional keyword arguments in <code>DataPrep</code> class:</strong></summary>
+
  - `dataset` _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
  - `feature_type` _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
  - `label_type` _(string)_: type of labels (so far only "unigram" is implemented)
@@ -89,6 +94,7 @@ __Optional keyword arguments in `DataPrep` class:__
  - `test_shard_size` _(int)_: approximate tfrecord shard sizes for testing data (in MB)
  - `delete_converted` _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
  - `debug` _(bool)_: switch between normal and debug mode
+</details>
 
 __Default/Allowed values of the keyword arguments in `DataPrep` class:__
 ```
