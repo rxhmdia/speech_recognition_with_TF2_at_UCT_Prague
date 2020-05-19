@@ -861,7 +861,6 @@ class DataPrep:
         self.delete_unused = if_bool(delete_unused)
         self.feature_names = if_str(feature_names)
         self.label_names = if_str(label_names)
-        self.cumm_time_seconds = dict()
 
         # 03_sort_data params
         self.tt_split_ratio = if_float(tt_split_ratio)  # TODO: range between 0. and 1.
@@ -873,6 +872,7 @@ class DataPrep:
 
         # for data_config.json
         self._num_features = None
+        self._time_info_dict = dict()
         self._data_config_dict = dict()
 
     @staticmethod
@@ -1055,20 +1055,17 @@ class DataPrep:
                                        self.full_save_path)  # relative position of current subdirectory in regards to load_dir
             save_full_path = os.path.normpath(os.path.join(save_path, rel_path))  # folder/subfolder to which save files in save_dir
 
-            split_path_list = save_full_path.split("\\")
+            # time_info_dict initialization
             for speed in self.speeds:
-                try:
-                    idx = split_path_list.index(str(speed))
-                    path_to_speed = os.path.join(*split_path_list[:idx + 1])
-                    if path_to_speed not in self.cumm_time_seconds.keys():
-                        self.cumm_time_seconds[path_to_speed] = {"accepted": 0.,
-                                                                 "rejected": 0.}
-                        LOGGER.debug(f"Initialized time_info dict for {path_to_speed}.")
+                if str(speed) in rel_path:
+                    cur_speed = str(speed)
+                    if cur_speed not in self._time_info_dict.keys():
+                        self._time_info_dict[cur_speed] = {"accepted": 0.,
+                                                          "rejected": 0.}
+                        LOGGER.debug(f"Initialized time_info dict for {cur_speed}.")
                     break
-                except ValueError:
-                    continue
             else:
-                path_to_speed = None
+                cur_speed = None
                 LOGGER.debug("No speed folder found.")
 
             # make subdirectories in save_dir
@@ -1102,17 +1099,9 @@ class DataPrep:
                     frames_rejected += feat_frame_len
 
             # generate dict file with time lengths for each speed
-            if path_to_speed:
-                self.cumm_time_seconds[path_to_speed]["accepted"] += frames_accepted*self.__framestride
-                self.cumm_time_seconds[path_to_speed]["rejected"] += frames_rejected*self.__framestride
-
-        # Save time_info json files to respective speed paths
-        LOGGER.info("Saving dictionaries with time_info to respective speed paths.")
-        for spd_path, time_info_dict in self.cumm_time_seconds.items():
-            time_info_path = os.path.join(spd_path, "time_info.json")
-            with open(time_info_path, "w") as f:
-                LOGGER.info(f"Saving time_info.json to path: {time_info_path}")
-                json.dump(time_info_dict, f)
+            if cur_speed:
+                self._time_info_dict[cur_speed]["accepted"] += frames_accepted*self.__framestride
+                self._time_info_dict[cur_speed]["rejected"] += frames_rejected*self.__framestride
 
         # Delete remaining unmoved files
         if self.delete_unused:
@@ -1295,6 +1284,8 @@ class DataPrep:
     # 05_save_data_config.json
     def save_data_config(self):
         for key, config_dict in self._data_config_dict.items():
+            LOGGER.info("Saving time_info to respective data_config dictionaries.")
+            config_dict["time_info"] = self._time_info_dict[key]
             data_config_path = f"{self.full_save_path[:-1]}_tfrecord/{key}/data_config.json"
             with open(data_config_path, "w") as f:
                 LOGGER.info(f"Saving data_config to path: {data_config_path}")

@@ -8,10 +8,11 @@ if __name__ == '__main__':
     dp = DataPrep(audio_folder,
                   transcript_folder,
                   save_folder,
-                  speeds=(0.9, 1.0, 1.1),
+                  speeds=(0.9, 1.0),
+                  train_shard_size=10,
                   mode="move",
-                  delete_unused=False,
-                  delete_converted=False,
+                  delete_unused=True,
+                  delete_converted=True,
                   debug=True)
 
     dp.run()
