@@ -197,31 +197,23 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
 </details>
 
 ### Production
-__TODO__
-```
-class PREDICTION_FLAGS(FLAGS):
+<details>
+ <summary>Show list of all params.</summary>
 
-    recording = {
-        "rate": 16000,
-        "updates_per_second": 10,
-        "channels": 1,
-        "max_record_seconds": 30,
-    }
-
-    features = {
-        "type": "MFSC",
-        "energy": True,
-        "deltas": (2, 2),
-    }
-
-    model = {
-        "path": "path/to/trained/model.h5",
-    }
-
-    # Prediction
-    beam_width = 256
-    top_paths = 5
-```
+ - `recording` _(Dict)_: Settings for voice recording
+    - `rate` _(int)_: Recording sampling rate  (__16000__ Hz)
+    - `updates_per_second` _(int)_: Recording updates per second (__10__)
+    - `channels` _(int)_: Number of recording channels (__1__)
+    - `max_record_seconds` _(int)_: Maximum length of a recording (__30__ s)
+ - `features`
+    - `type`: "MFSC"
+    - `energy`: True
+    - `deltas`: (2, 2)
+  - `model`
+    - `path`: "path/to/trained/model.h5"
+  - `beam_width` = 256
+  - `top_paths` = 5
+</details>
 
 ## Project Status
 
