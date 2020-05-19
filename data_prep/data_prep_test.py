@@ -1,17 +1,17 @@
 from DataOps import DataPrep
 
 if __name__ == '__main__':
-    audio_folder = "b:/!DATASETS/PDTSC/audio/"
-    transcript_folder = "b:/!DATASETS/PDTSC/transcripts/"
+    audio_folder = "b:/!DATASETS/raw_debug/audio/"
+    transcript_folder = "b:/!DATASETS/raw_debug/transcripts/"
     save_folder = 'B:/!temp/'
 
     dp = DataPrep(audio_folder,
                   transcript_folder,
                   save_folder,
-                  speeds=(1.0, ),
+                  speeds=(0.9, 1.0, 1.1),
                   mode="move",
                   delete_unused=False,
                   delete_converted=False,
-                  debug=False)
+                  debug=True)
 
     dp.run()

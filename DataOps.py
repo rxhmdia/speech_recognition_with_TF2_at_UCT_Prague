@@ -760,7 +760,7 @@ class DataPrep:
     __nbanks = 40
     __filter_nan = True
     __sort = False
-    __label_max_duration = 10.0
+    __oral_max_duration = 10.0
     __speeds = (1.0, )
     __min_frame_length = 100
     __max_frame_length = 3000
@@ -777,7 +777,7 @@ class DataPrep:
     def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__datasets[0],
                  feature_type=__feature_types[0], label_type=__label_types[0], repeated=__repeated,
                  energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
-                 label_max_duration=10.0, speeds=(1.0, ), min_frame_length=__min_frame_length,
+                 oral_max_duration=__oral_max_duration, speeds=__speeds, min_frame_length=__min_frame_length,
                  max_frame_length=__max_frame_length, mode=__modes[0], delete_unused=__delete_unused,
                  feature_names=__feature_names, label_names=__label_names, tt_split_ratio=__tt_split_ratio,
                  train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
@@ -796,7 +796,7 @@ class DataPrep:
         :param nbanks (int): number of mel-scaled filter banks
         :param filter_nan (bool): whether to filter-out inputs with NaN values
         :param sort (bool): whether to sort resulting cepstra by file size (i.e. audio length)
-        :param label_max_duration (float): maximum time duration of the audio utterances
+        :param oral_max_duration (float): maximum time duration of the audio utterances for ORAL dataset
         :param speeds (Tuple[float, ...]): speed augmentation multipliers (value between 0. and 1.)
         :param min_frame_length (int): signals with less time-frames will be excluded
         :param max_frame_length (int): signals with more time-frames will be excluded
@@ -843,7 +843,7 @@ class DataPrep:
         self.filter_nan = if_bool(filter_nan, "filter_nan")
         self.sort = if_bool(sort, "sort")
 
-        self.label_max_duration = if_float(label_max_duration, "label_max_duration")
+        self.oral_max_duration = if_float(oral_max_duration, "oral_max_duration")
         self.speeds = speeds if [if_float(s) for s in speeds] else self.__speeds
 
         self.debug = if_bool(debug, "debug")
@@ -852,6 +852,8 @@ class DataPrep:
         self.full_save_path = os.path.join(self.save_folder,
                                            f'{self.dataset.upper()}_{self.feature_type}_{self.label_type}'
                                            f'_{self.nbanks}_banks{"_DEBUG" if self.debug else ""}/')
+        self.__framestride = None
+
         # 02_feature_length_range params
         self.min_frame_length = if_int(min_frame_length)
         self.max_frame_length = if_int(max_frame_length)
@@ -859,6 +861,7 @@ class DataPrep:
         self.delete_unused = if_bool(delete_unused)
         self.feature_names = if_str(feature_names)
         self.label_names = if_str(label_names)
+        self.cumm_time_seconds = dict()
 
         # 03_sort_data params
         self.tt_split_ratio = if_float(tt_split_ratio)  # TODO: range between 0. and 1.
@@ -895,7 +898,7 @@ class DataPrep:
     def prepare_data(self, files):
         cepstra_length_list = []
 
-        label_max_duration = self.label_max_duration
+        oral_max_duration = self.oral_max_duration
         speeds = self.speeds
 
         file_names = self._get_file_names(files)
@@ -918,7 +921,7 @@ class DataPrep:
                 elif self.dataset == "oral":
                     oral = OralLoader([file[0]], [file[1]], self.bigrams, self.repeated)
                     label_dict = oral.transcripts_to_labels(
-                        label_max_duration)  # Dict['file_name':Tuple[sents_list, starts_list, ends_list]]
+                        oral_max_duration)  # Dict['file_name':Tuple[sents_list, starts_list, ends_list]]
                     audio_dict, fs_dict = oral.load_audio()  # Dicts['file_name']
 
                     labels = label_dict[file_names[i]]
@@ -941,6 +944,7 @@ class DataPrep:
                 feat_ext = FeatureExtractor(audio, fs, feature_type=self.feature_type, energy=self.energy,
                                             deltas=self.deltas, nbanks=self.nbanks)
                 cepstra = feat_ext.transform_data()  # list of 2D arrays
+                self.__framestride = feat_ext.framestride
                 # filter out cepstra which are containing nan values
                 if self.filter_nan:
                     LOGGER.info(f"\tFiltering out NaN values")
@@ -1038,6 +1042,9 @@ class DataPrep:
             feat_file_names = [f for f in files if self.feature_names in f]
             label_file_names = [f for f in files if self.label_names in f]
 
+            frames_accepted = 0
+            frames_rejected = 0
+
             num_feats = len(feat_file_names)
             num_labels = len(label_file_names)
 
@@ -1046,7 +1053,23 @@ class DataPrep:
 
             rel_path = os.path.relpath(path,
                                        self.full_save_path)  # relative position of current subdirectory in regards to load_dir
-            save_full_path = os.path.join(save_path, rel_path)  # folder/subfolder to which save files in save_dir
+            save_full_path = os.path.normpath(os.path.join(save_path, rel_path))  # folder/subfolder to which save files in save_dir
+
+            split_path_list = save_full_path.split("\\")
+            for speed in self.speeds:
+                try:
+                    idx = split_path_list.index(str(speed))
+                    path_to_speed = os.path.join(*split_path_list[:idx + 1])
+                    if path_to_speed not in self.cumm_time_seconds.keys():
+                        self.cumm_time_seconds[path_to_speed] = {"accepted": 0.,
+                                                                 "rejected": 0.}
+                        LOGGER.debug(f"Initialized time_info dict for {path_to_speed}.")
+                    break
+                except ValueError:
+                    continue
+            else:
+                path_to_speed = None
+                LOGGER.debug("No speed folder found.")
 
             # make subdirectories in save_dir
             os.makedirs(save_full_path, exist_ok=True)
@@ -1061,6 +1084,8 @@ class DataPrep:
                 feat_frame_len = feat[0][0].shape[0]
 
                 if self.min_frame_length <= feat_frame_len <= self.max_frame_length:
+                    # TODO: calculate cummulative feature time length
+                    frames_accepted += feat_frame_len
                     if self.mode == 'copy':
                         shutil.copy2(feat_load_path, feat_save_path)
                         LOGGER.debug("Copied {} to {}".format(feat_load_path, feat_save_path))
@@ -1073,6 +1098,21 @@ class DataPrep:
                         LOGGER.debug("Moved {} to {}".format(label_load_path, label_save_path))
                     else:
                         raise ValueError("argument mode must be either 'copy' or 'move'")
+                else:
+                    frames_rejected += feat_frame_len
+
+            # generate dict file with time lengths for each speed
+            if path_to_speed:
+                self.cumm_time_seconds[path_to_speed]["accepted"] += frames_accepted*self.__framestride
+                self.cumm_time_seconds[path_to_speed]["rejected"] += frames_rejected*self.__framestride
+
+        # Save time_info json files to respective speed paths
+        LOGGER.info("Saving dictionaries with time_info to respective speed paths.")
+        for spd_path, time_info_dict in self.cumm_time_seconds.items():
+            time_info_path = os.path.join(spd_path, "time_info.json")
+            with open(time_info_path, "w") as f:
+                LOGGER.info(f"Saving time_info.json to path: {time_info_path}")
+                json.dump(time_info_dict, f)
 
         # Delete remaining unmoved files
         if self.delete_unused:
