@@ -1139,16 +1139,19 @@ class DataPrep:
 
         LOGGER.info("Splitting into train and test datasets by tt_split_ratio")
         data_len = len(sorted_file_size_list)
-        test_period = 1.0//(1.0 - self.tt_split_ratio)
-
-        for i in range(data_len):
-            if (i + 1) % test_period:
-                # put into train_dataset
-                sorted_train_list.append(sorted_file_size_list[i])
-            else:
-                # put into test_dataset
-                sorted_test_list.append(sorted_file_size_list[i])
-        LOGGER.info("File-size lists for train and test datasets sorted and saved.")
+        if 0.0 <= self.tt_split_ratio < 1.0:
+            test_period = 1.0//(1.0 - self.tt_split_ratio)
+            for i in range(data_len):
+                if (i + 1) % test_period:
+                    # put into train_dataset
+                    sorted_train_list.append(sorted_file_size_list[i])
+                else:
+                    # put into test_dataset
+                    sorted_test_list.append(sorted_file_size_list[i])
+            LOGGER.info("File-size lists for train and test datasets sorted and saved.")
+        else:
+            LOGGER.info("tt_split_ratio == 1.0 or is out of bounds. Filling only Train list.")
+            sorted_train_list = sorted_file_size_list
 
         return sorted_train_list, sorted_test_list
 
