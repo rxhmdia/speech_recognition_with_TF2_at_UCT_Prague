@@ -1,5 +1,5 @@
 import json
-
+from helpers import console_logger
 
 class FLAGS:
     # noinspection DuplicatedCode
@@ -12,9 +12,10 @@ class FLAGS:
     alphabet_size = len(c2n_map)
 
     logger_level = "INFO"
+    LOGGER = console_logger(__name__, logger_level)
 
-    # load_dir = None
-    load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
+    load_dir = None
+    # load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
@@ -36,9 +37,15 @@ class FLAGS:
             num_features = dc["num_features"]  # 123
             min_time = dc["min_time"]  # 100
             max_time = dc["max_time"]  # 3000
+            buffer_size = int(0.1 * num_train_data / batch_size_per_GPU)
     else:
-        print("No load_dir specified. Can't load data_config.json. Be sure that it's not needed in your task.")
-    buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
+        num_train_data = 0  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+        num_test_data = 0  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+        num_features = 0  # 123
+        min_time = 0  # 100
+        max_time = 0  # 3000
+        buffer_size = int(0.1 * num_train_data / batch_size_per_GPU)
+        LOGGER.warning("No load_dir specified. Can't load data_config.json. Be sure that it's not needed in your task.")
     shuffle_seed = 42
 
     bucket_width = 100

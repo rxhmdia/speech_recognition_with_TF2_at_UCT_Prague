@@ -61,12 +61,17 @@ dp = DataPrep(audio_folder, transcript_folder, save_folder)
 
 dp.run()
 ```
-__Mandatory arguments in `DataPrep` class:__
+<details>
+<summary><strong>Mandatory arguments in <code>DataPrep</code> class:</strong></summary>
+
  - `audio_folder` _(string)_: path to folder with raw audio files (.wav or .ogg)
  - `transcript_folder` _(string)_: path to folder with raw transcript files (.txt)
  - `save_folder` _(string)_: path to folder in which to save the preprocessed data
+</details>
 
-__Optional keyword arguments in `DataPrep` class:__
+<details>
+<summary><strong>Optional keyword arguments in <code>DataPrep</code> class:</strong></summary>
+
  - `dataset` _(string)_: which dataset is to be expected (allowed:"pdtsc" or "oral")
  - `feature_type` _(string)_: which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
  - `label_type` _(string)_: type of labels (so far only "unigram" is implemented)
@@ -89,8 +94,11 @@ __Optional keyword arguments in `DataPrep` class:__
  - `test_shard_size` _(int)_: approximate tfrecord shard sizes for testing data (in MB)
  - `delete_converted` _(bool)_: whether to delete .npy shard folders that were already converted to .tfrecords
  - `debug` _(bool)_: switch between normal and debug mode
+</details>
 
-__Default/Allowed values of the keyword arguments in `DataPrep` class:__
+<details>
+<summary><strong>Default/Allowed values of the keyword arguments in <code>DataPrep</code> class:</strong></summary>
+
 ```
 __datasets = ("pdtsc", "oral")  # default choice: [0]
 __feature_types = ("MFSC", "MFCC")  # default choice: [0]
@@ -115,11 +123,15 @@ __test_shard_size = 2**7
 __delete_converted = False
 __debug = False
 ```
+</details>
 
 ### Training
 Starting the training process itself is quite simple. Just run `main.py` with desired settings which
 are determined by the [FLAGS.py](FLAGS.py) file. The following params can be changed and tweaked:
 
+<details>
+ <summary>Show list of all params.</summary>
+ 
  - `logger_level` _(string)_: verbosity level of the console logger ("DEBUG", "__INFO__", "WARNING")
  - `load_dir` _(string)_:  path to directory with the preprocessed data for training 
  - `save_dir` _(string)_: path to directory for saving model checkpoints and other data
@@ -130,100 +142,78 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
  - `batch_size_per_GPU` _(int)_: size of training minibatches for each working GPU (__8__)
  - `shuffle_seed` _(int)_: seed for reproducing random shuffling order (__42__)
  - `bucket_width` _(int)_: size of buckets in which similar length utterances are grouped (__100__)
-```
-    # MODEL
-    save_architecture_image = False
-    show_shapes = True
+ - `save_architecture_image` _(bool)_: whether to save model architecture to `save_dir`
+ - `show_shapes` _(bool)_: whether to also show model values for layer shapes in architecture image
+ - `weight_init_mean` _(float)_: model weight random initialization mean value (__0.0__)
+ - `weight_init_stddev` _(float)_: model weight random initialization standard deviation value (__0.0001__)
+ - `ff_first_params` _(Dict)_: params for allowing/tweaking Dense layers at start of the model 
+    - `use` _(bool)_: whether to include Dense layers at the start of the model or not (__False__)
+    - `num_units` _(List[int])_: List/Tuple signifying number of layers and their number of hidden units
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Dense layer
+    - `drop_rates` _(List[float])_: List/Tuple of dropout rates in each Dense layer
+ - `conv_params` _(Dict)_: params for allowing/tweaking Convolutional layers at start of the model
+    - `use` _(bool)_: wheter to include Convolutional layers at the start of the model or not (__True__)
+    - `channels` _(List[int])_: List/Tuple for setting number of filters (channels) in each layer
+    - `kernels` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for sizes of filters
+    - `strides` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for strides of filters
+    - `dilation_rates` _(List[Tuple[int]])_: List/Tuple of Tuples (__time dim, feature dim__) for filter dilations
+    - `padding` _(str)_: whether/how to pad at the sides of the input 
+        - ___'same'___ (default): padding at sides so that inp shape == out shape (not regarding strides)
+        - __'valid'__: no padding at sides, meaning that output shape depends on kernel sizes
+    - `data_format` _(str)_: order of dimensions in input data
+        - __'channels_first'__: "NCHW" ... channels are in the first dimension (N is batch size)
+        - ___'channels_last'___ (default): "NHWC" ... channels are in the last dimension (N is batch size)
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after each Conv layer
+    - `drop_rates` (_List[float]_): List/Tuple of dropout rates in each Conv layer
+ - `bn_momentum` _(float)_: momentum of Batch Normalization parameter updates (__0.9__)
+ - `relu_clip_val` _(float)_: if the ReLU output will be higher than this number, it will get clipped (__20.__)
+ - `relu_alpha` _(float)_: Leaky ReLU negative domain slope (__0.2__)
+ - `rnn_params` _(Dict)_: params for allowing/tweaking Bidirectional Recurrent layers (BGRU) in the model
+    - `use` _(bool)_: whether to include BGRU layers in the model (__True__)
+    - `num_units` (_List[int]_): number of BGRU layers and number of their hidden neurons
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after the BGRU layers (__True__)
+    - `drop_rates` _(List[float]): dropout rates in each BGRU layer
+ - `ff_params` _(Dict)_: params for allowing Dense (FF) layers after the BGRU layers (__True__)
+    - `use` _(bool)_: whether to include FF layers in the model (__True__)
+    - `num_units` (_List[int]_): number of FF layers and number of hidden units (neurons) in each of them
+    - `batch_norm` _(bool)_: whether to include Batch Normalization layers after the FF layers (__True__)
+    - `drop_rates` _(List[float]): dropout rates in each FF layer
+ - `lr` _(float)_: learning rate of the optimizer (__0.001__)
+ - `lr_decay` _(bool)_: whether to exponentially decay learning rate during training (__True__)
+ - `lr_decay_rate` _(float)_: rate at which the learning rate decays (__0.8__)
+ - `lr_decay_epochs` _(int)_: how often will the learning rate be decayed (__1__)
+ - `epsilon` _(int)_: Adam optimizer parameter to prevent division by zero (__0.1__)
+ - `amsgrad` _(bool)_: Switch between Adam and AMSGrad optimizer (__True__ is for AMSGrad)
+ - `data_aug` _(Dict)_: Pipeline Data Augmentation parameter dictionary
+    - `mode` _(str)_: how many times to apply SpecAugment on input data ("0x", __"1x"__, "2x")
+    - `bandwidth_time` (_Tuple[int]_): time masking bandwidth range (__(10, 100)__)
+    - `bandwidth_freq` (_Tuple[int]_): frequency masking bandwidth range (__(10, 30)__)
+    - `max_percent_time` _(float)_: maximum time percentage that can be masked (__0.2__)
+    - `max_percent_freq` _(float)_: maximum frequency percentage that can be masekd (__1.0__)
+ - `beam_width` _(int)_: Beam Search decoder beam width (__256__)
+ - `top_paths` _(int)_: Number of best paths to be selected by Beam Search (__1__, >1 not supported)
+ - `patience_epochs` _(int)_: Early Stopping patience before prematurely ending the trainig run (__3__)
 
-    weight_init_mean = 0.0
-    weight_init_stddev = 0.0001
-
-    # Architecture:
-    ff_first_params = {
-        'use': False,
-        'num_units': [128, 64],
-        'batch_norm': False,
-        'drop_rates': [0.],
-    }
-    conv_params = {
-        'use': True,
-        'channels': [32, 64, 128, 256],
-        'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
-        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
-        'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
-        'padding': 'same',
-        'data_format': 'channels_last',
-        'batch_norm': True,
-        'drop_rates': [0., 0., 0., 0.],
-    }
-    bn_momentum = 0.9
-    relu_clip_val = 20
-    relu_alpha = 0.2
-    rnn_params = {
-        'use': True,
-        'num_units': [512, 512],
-        'batch_norm': True,
-        'drop_rates': [0., 0.],
-    }
-    ff_params = {
-        'use': True,
-        'num_units': [256, 128],
-        'batch_norm': True,
-        'drop_rates': [0., 0.],
-    }
-
-    # Optimizer:
-    lr = 0.001
-    lr_decay = True
-    lr_decay_rate = 0.8
-    lr_decay_epochs = 1
-    epsilon = 0.1
-    amsgrad = True
-
-    # Data Augmentation (in pipeline):
-    data_aug = {
-        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
-        'bandwidth_time': (10, 100),
-        'bandwidth_freq': (10, 30),
-        'max_percent_time': 0.2,
-        'max_percent_freq': 1.,
-    }
-
-
-    # Decoder:
-    beam_width = 256
-    top_paths = 1  # > 1 not implemented
-
-    # Early Stopping:
-    patience_epochs = 3
-```
+</details>
 
 ### Production
-__TODO__
-```
-class PREDICTION_FLAGS(FLAGS):
+<details>
+ <summary>Show list of all params.</summary>
 
-    recording = {
-        "rate": 16000,
-        "updates_per_second": 10,
-        "channels": 1,
-        "max_record_seconds": 30,
-    }
-
-    features = {
-        "type": "MFSC",
-        "energy": True,
-        "deltas": (2, 2),
-    }
-
-    model = {
-        "path": "path/to/trained/model.h5",
-    }
-
-    # Prediction
-    beam_width = 256
-    top_paths = 5
-```
+ - `recording` _(Dict)_: Settings for voice recording
+    - `rate` _(int)_: Recording sampling rate  (__16000__ Hz)
+    - `updates_per_second` _(int)_: Recording updates per second (__10__)
+    - `channels` _(int)_: Number of recording channels (__1__)
+    - `max_record_seconds` _(int)_: Maximum length of a recording (__30__ s)
+ - `features` _(Dict)_: Settings for feature extraction
+    - `type` _(str)_: type of features (__"MFSC"__ or "MFCC")
+    - `energy` _(bool)_: whether to include energy feature to final feature matrix (__True__)
+    - `deltas` _(Tuple[int]): (deltas, delta-deltas) time range around current time step (__(2, 2)__)
+  - `model` _(Dict)_: trained model settings
+    - `path` _(str)_: "path/to/trained/model.h5"
+  - `beam_width` _(int)_: with of Beam Search decoding (__256__)
+  - `top_paths` _(int)_: how many top paths will be shown as prediction from Beam Search (__5__)
+</details>
 
 ## Project Status
 
