@@ -205,14 +205,14 @@ are determined by the [FLAGS.py](FLAGS.py) file. The following params can be cha
     - `updates_per_second` _(int)_: Recording updates per second (__10__)
     - `channels` _(int)_: Number of recording channels (__1__)
     - `max_record_seconds` _(int)_: Maximum length of a recording (__30__ s)
- - `features`
-    - `type`: "MFSC"
-    - `energy`: True
-    - `deltas`: (2, 2)
-  - `model`
-    - `path`: "path/to/trained/model.h5"
-  - `beam_width` = 256
-  - `top_paths` = 5
+ - `features` _(Dict)_: Settings for feature extraction
+    - `type` _(str)_: type of features (__"MFSC"__ or "MFCC")
+    - `energy` _(bool)_: whether to include energy feature to final feature matrix (__True__)
+    - `deltas` _(Tuple[int]): (deltas, delta-deltas) time range around current time step (__(2, 2)__)
+  - `model` _(Dict)_: trained model settings
+    - `path` _(str)_: "path/to/trained/model.h5"
+  - `beam_width` _(int)_: with of Beam Search decoding (__256__)
+  - `top_paths` _(int)_: how many top paths will be shown as prediction from Beam Search (__5__)
 </details>
 
 ## Project Status
