@@ -14,8 +14,8 @@ class FLAGS:
     logger_level = "INFO"
     LOGGER = console_logger(__name__, logger_level)
 
-    load_dir = None
-    # load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
+    # load_dir = None
+    load_dir = "c:/!temp/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
@@ -68,9 +68,9 @@ class FLAGS:
     }
     conv_params = {
         'use': True,
-        'channels': [32, 64, 128, 256],
+        'channels': [1, 2, 4, 8],
         'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
-        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
+        'strides': [(3, 4), (2, 4), (1, 4), (1, 2)],
         'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
         'padding': 'same',
         'data_format': 'channels_last',
@@ -82,19 +82,19 @@ class FLAGS:
     relu_alpha = 0.2
     rnn_params = {
         'use': True,
-        'num_units': [512, 512],
+        'num_units': [32, 32],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
     ff_params = {
         'use': True,
-        'num_units': [256, 128],
+        'num_units': [32, 32],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
 
     # Optimizer
-    lr = 0.001
+    lr = 0.01
     lr_decay = True
     lr_decay_rate = 0.8
     lr_decay_epochs = 1
@@ -103,7 +103,7 @@ class FLAGS:
 
     # Data Augmentation (in pipeline)
     data_aug = {
-        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'mode': "0x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
         'bandwidth_time': (10, 100),
         'bandwidth_freq': (10, 30),
         'max_percent_time': 0.2,
@@ -112,7 +112,7 @@ class FLAGS:
 
 
     # Decoder
-    beam_width = 256
+    beam_width = 32
     top_paths = 1  # > 1 not implemented
 
     # Early stopping

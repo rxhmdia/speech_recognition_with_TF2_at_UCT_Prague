@@ -112,7 +112,7 @@ def build_model(kernel_initializer):
             x = ff(x, ff_num_units, kernel_initializer, FLAGS.ff_params['batch_norm'], drop_rate)
 
     # Output logits
-    logits = Dense(FLAGS.alphabet_size + 1)(x)
+    logits = Dense(FLAGS.alphabet_size + 1, activation="softmax")(x)
 
     return Model(inputs=x_in, outputs=logits)
 
