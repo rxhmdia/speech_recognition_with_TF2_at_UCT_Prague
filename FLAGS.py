@@ -1,6 +1,7 @@
 import json
 from helpers import console_logger
 
+
 class FLAGS:
     # noinspection DuplicatedCode
     c2n_map = {'a': 0, 'á': 1, 'b': 2, 'c': 3, 'č': 4, 'd': 5, 'ď': 6, 'e': 7, 'é': 8, 'ě': 9,
@@ -12,32 +13,40 @@ class FLAGS:
     alphabet_size = len(c2n_map)
 
     logger_level = "INFO"
+    LOGGER = console_logger(__name__, logger_level)
 
-    # load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
+    # load_dir = None
+    load_dir = "c:/!temp/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
-    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
-    # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/1.0/"
+    # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
-    # TODO: Tady Martin Minulovič
-    #  Zkoušíme rozdíl mezi modelem se softmax a modelem bez softmax
-    #  nyní jede model bez softmax, potom pullni z githubu a zkus to se softmax
-    num_runs = 2
-    max_epochs = 60
+
+    num_runs = 5
+    max_epochs = 20
     batch_size_per_GPU = 8
 
     # noinspection DuplicatedCode
-    with open(load_dir + "data_config.json", "r") as f:
-        dc = json.load(f)
-        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
-        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
-        num_features = dc["num_features"]  # 123
-        min_time = dc["min_time"]  # 100
-        max_time = dc["max_time"]  # 3000
-    buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
+    if load_dir:
+        with open(load_dir + "data_config.json", "r") as f:
+            dc = json.load(f)
+            num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+            num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+            num_features = dc["num_features"]  # 123
+            min_time = dc["min_time"]  # 100
+            max_time = dc["max_time"]  # 3000
+            buffer_size = int(0.1 * num_train_data / batch_size_per_GPU)
+    else:
+        num_train_data = 0  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+        num_test_data = 0  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+        num_features = 0  # 123
+        min_time = 0  # 100
+        max_time = 0  # 3000
+        buffer_size = int(0.1 * num_train_data / batch_size_per_GPU)
+        LOGGER.warning("No load_dir specified. Can't load data_config.json. Be sure that it's not needed in your task.")
     shuffle_seed = 42
 
     bucket_width = 100
@@ -45,7 +54,7 @@ class FLAGS:
     feature_pad_val = 0.0
     label_pad_val = -1
 
-    # MODEL
+    # ACOUSTIC MODEL params
     save_architecture_image = False
     show_shapes = True
 
@@ -60,9 +69,9 @@ class FLAGS:
     }
     conv_params = {
         'use': True,
-        'channels': [32, 64, 128, 256],
+        'channels': [1, 2, 4, 8],
         'kernels': [(16, 32), (8, 16), (4, 8), (4, 4)],
-        'strides': [(2, 4), (2, 4), (1, 2), (1, 2)],
+        'strides': [(3, 4), (2, 4), (1, 4), (1, 2)],
         'dilation_rates': [(1, 1), (1, 1), (1, 1), (1, 1)],
         'padding': 'same',
         'data_format': 'channels_last',
@@ -74,13 +83,13 @@ class FLAGS:
     relu_alpha = 0.2
     rnn_params = {
         'use': True,
-        'num_units': [512, 512],
+        'num_units': [32, 32],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
     ff_params = {
         'use': True,
-        'num_units': [256, 128],
+        'num_units': [32, 32],
         'batch_norm': True,
         'drop_rates': [0., 0.],
     }
@@ -96,19 +105,20 @@ class FLAGS:
     # Optimizer
     lr = 0.01
     lr_decay = True
-    lr_decay_rate = 0.9
-    lr_decay_epochs = 2
+    lr_decay_rate = 0.8
+    lr_decay_epochs = 1
     epsilon = 0.1
     amsgrad = True
 
     # Data Augmentation (in pipeline)
     data_aug = {
-        'mode': "2x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
+        'mode': "0x",  # mode of many times to apply data aug (allowed: 0x, 1x or 2x)
         'bandwidth_time': (10, 100),
         'bandwidth_freq': (10, 30),
         'max_percent_time': 0.2,
         'max_percent_freq': 1.,
     }
+
 
     # Decoder
     beam_width = 32

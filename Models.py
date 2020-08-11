@@ -62,6 +62,17 @@ class LanguageModel(Layer):
                 x = self.bgru_dropouts[i](x)
         return self.dense(x)
 
+    def get_config(self):
+        config = {"name": "bgru_language_model",
+                  "trainable": True,
+                  "dtype": tf.float32,
+                  "vocab_size": self._C,
+                  "gru_units": [2*b for b in self._B],
+                  "batch_norm": self.batch_norm,
+                  "bn_momentum": self.bn_momentum,
+                  "drop_rates": list(self._D)}
+        return config
+
 
 ''' """""""""""""""""""""""
 """                     """
@@ -72,7 +83,7 @@ class LanguageModel(Layer):
 
 class BGRUwDropout(Layer):
 
-    def __init__(self, units, batch_norm=False, bn_momentum=0.99, drop_rate=0., kernel_initializer=None, return_sequences=False):
+    def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0., kernel_initializer=None, return_sequences=False):
         """ Bidirectional GRU layer with custom dropout and batch normalization
 
         :param units (int): number of hidden units in GRU cell
@@ -83,7 +94,6 @@ class BGRUwDropout(Layer):
         :param return_sequences (bool): whether to return sequences or only the last output
         """
         super(BGRUwDropout, self).__init__()
-
         self.bgru = Bidirectional(GRU(units,
                                       kernel_initializer=kernel_initializer,
                                       recurrent_initializer=kernel_initializer,
@@ -94,6 +104,8 @@ class BGRUwDropout(Layer):
             self.bn = None
         self.dropout = Dropout(drop_rate)
 
+        self.all_units = int(units*2)
+
     def call(self, x_input, training=False):
         x = self.bgru(x_input)
         if self.bn:
@@ -101,6 +113,13 @@ class BGRUwDropout(Layer):
         if training:
             x = self.dropout(x)
         return x
+
+    def get_config(self):
+        config = {"name": "bgru_with_dropout",
+                  "trainable": True,
+                  "dtype": tf.float32,
+                  "units": self.all_units}
+        return config
 
 
 def _conv_output_shape(input_shape, filt_shape, filt_stride, padding="same"):
