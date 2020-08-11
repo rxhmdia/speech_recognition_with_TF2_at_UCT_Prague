@@ -65,7 +65,7 @@ class LanguageModel(Layer):
     def get_config(self):
         config = {"name": "bgru_language_model",
                   "trainable": True,
-                  "dtype": tf.float32,
+                  "dtype": float,
                   "vocab_size": self._C,
                   "gru_units": [2*b for b in self._B],
                   "batch_norm": self.batch_norm,
@@ -117,7 +117,7 @@ class BGRUwDropout(Layer):
     def get_config(self):
         config = {"name": "bgru_with_dropout",
                   "trainable": True,
-                  "dtype": tf.float32,
+                  "dtype": float,
                   "units": self.all_units}
         return config
 
