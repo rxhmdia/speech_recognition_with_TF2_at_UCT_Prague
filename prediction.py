@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
-from Model import predict_from_saved_model
+from Models import predict_from_saved_model
 
 
 def read_chunk(stream, chunk_size):

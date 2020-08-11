@@ -53,7 +53,7 @@ class FLAGS:
     feature_pad_val = 0.0
     label_pad_val = -1
 
-    # MODEL
+    # ACOUSTIC MODEL params
     save_architecture_image = False
     show_shapes = True
 
@@ -91,6 +91,14 @@ class FLAGS:
         'num_units': [32, 32],
         'batch_norm': True,
         'drop_rates': [0., 0.],
+    }
+
+    # LANGUAGE MODEL params
+    lm_gru_params = {
+        'use': True,
+        'num_units': [64, 32],
+        'batch_norm': False,
+        'drop_rates': [0.1, 0.2]
     }
 
     # Optimizer

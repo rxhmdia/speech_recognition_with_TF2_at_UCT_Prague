@@ -6,9 +6,20 @@ from helpers import console_logger
 
 LOGGER = console_logger(__name__, "DEBUG")
 
-DATASET = "pdtsc"
-TRANSCRIPT_FOLDER = "b:/!DATASETS/PDTSC/transcripts/"
+DATASET = "oral"  # "pdtsc" or "oral"
+DEBUG = False
+
+if "pdtsc" in DATASET.lower():
+    TRANSCRIPT_FOLDER = "b:/!DATASETS/PDTSC/transcripts"
+elif "oral" in DATASET.lower():
+    TRANSCRIPT_FOLDER = "b:/!DATASETS/oral2013/transcripts"
+else:
+    raise ValueError("DATASET should be either pdtsc or oral.")
+TRANSCRIPT_FOLDER += "_debug/" if DEBUG else "/"
 LABEL_SAVE_FILE_PATH = os.path.join(TRANSCRIPT_FOLDER, "labels.txt")
+
+N2C_MAP = PDTSCLoader.n2c_map
+N2C_MAP[13] = "*"  # change "ch" mapping to "*" so that it registers as one character
 
 if __name__ == '__main__':
     audiofiles = []
@@ -28,12 +39,12 @@ if __name__ == '__main__':
         labels = list(labels.values())
         labels = [[l[0] for lab in labels for l in lab]]
     LOGGER.debug(f"label from first sentence in first file: {labels[0][0]}")
-    LOGGER.debug(f"decoded: {loader.num2char([labels[0][0]], loader.n2c_map)}")
+    LOGGER.debug(f"decoded: {loader.num2char([labels[0][0]], N2C_MAP)}")
 
     LOGGER.info("Decode back into sentences")
     decoded_labels = []
     for lab_file in labels:
-        decoded_labels.extend(loader.num2char(lab_file, loader.n2c_map))
+        decoded_labels.extend(loader.num2char(lab_file, N2C_MAP))
     LOGGER.debug(f"Decoded labels: {decoded_labels}")
 
     LOGGER.info("Add lineends at end of each sentence")
