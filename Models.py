@@ -50,7 +50,7 @@ class LanguageModel(Layer):
             if self.batch_norm:
                 self.bgru_bn.append(BatchNormalization(momentum=self.bn_momentum))
             self.bgru_dropouts.append(Dropout(drop))
-        self.dense = Dense(self._C, activation="softmax")
+        self.dense = Dense(self._C)
 
     def call(self, x_input, training=None):
         x = self.inp(x_input)
@@ -221,20 +221,19 @@ def build_model(kernel_initializer):
         for ff_num_units, drop_rate in zip(FLAGS.ff_params['num_units'], FLAGS.ff_params['drop_rates']):
             x = ff(x, ff_num_units, kernel_initializer, FLAGS.ff_params['batch_norm'], drop_rate)
 
+    # Output logits from AM
+    logits = Dense(FLAGS.alphabet_size + 1)(x)
+
     # Language model
     if FLAGS.lm_gru_params['use']:
         # vocab_size: int, gru_sizes: GruSizes, batch_norm: bool, bn_momentum: float, drop_rates: DropRates
-        x = Dense(FLAGS.alphabet_size + 1)(x)
-        x = tf.roll(x, -1, axis=1)
+        logits = tf.roll(logits, -1, axis=1)
         # Output logits from LM
         logits = LanguageModel(FLAGS.alphabet_size + 1,
                                FLAGS.lm_gru_params['num_units'],
                                FLAGS.lm_gru_params['batch_norm'],
                                FLAGS.bn_momentum,
-                               FLAGS.lm_gru_params['drop_rates'])(x)
-    else:
-        # Output logits from AM
-        logits = Dense(FLAGS.alphabet_size + 1, activation="softmax")(x)
+                               FLAGS.lm_gru_params['drop_rates'])(logits)
 
     return Model(inputs=x_in, outputs=logits)
 
