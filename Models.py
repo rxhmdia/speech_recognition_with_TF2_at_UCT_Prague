@@ -106,7 +106,7 @@ class BGRUwDropout(Layer):
             self.bn = None
         self.dropout = Dropout(drop_rate)
 
-        self.all_units = int(units*2)
+        self.hidden_units = units
 
     def call(self, x_input, training=False):
         x = self.bgru(x_input)
@@ -119,7 +119,7 @@ class BGRUwDropout(Layer):
     def get_config(self):
         config = {"trainable": True,
                   "dtype": float,
-                  "units": self.all_units,
+                  "units": self.hidden_units,
                   "return_sequences": True}
         return config
 

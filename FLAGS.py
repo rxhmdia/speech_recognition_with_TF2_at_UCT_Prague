@@ -99,7 +99,7 @@ class FLAGS:
     lm_gru_params = {
         'use': True,
         'num_units': [128, 64],
-        'batch_norm': True,
+        'batch_norm': False,
         'drop_rates': [0.0, 0.0]
     }
 
