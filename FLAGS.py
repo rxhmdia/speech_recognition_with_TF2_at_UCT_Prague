@@ -31,13 +31,22 @@ class FLAGS:
     batch_size_per_GPU = 8
 
     # noinspection DuplicatedCode
-    with open(load_dir + "data_config.json", "r") as f:
-        dc = json.load(f)
-        num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
-        num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
-        num_features = dc["num_features"]  # 123
-        min_time = dc["min_time"]  # 100
-        max_time = dc["max_time"]  # 3000
+    try:
+        with open(load_dir + "data_config.json", "r") as f:
+            dc = json.load(f)
+            num_train_data = dc["num_train_data"]  # int(48812/2)  # int(11308/2)  # full ORAL == 374714/2
+            num_test_data = dc["num_test_data"]  # int(4796/2)  # int(1304/2)  # full ORAL == 16502/2
+            num_features = dc["num_features"]  # 123
+            min_time = dc["min_time"]  # 100
+            max_time = dc["max_time"]  # 3000
+    except FileNotFoundError:
+        print(f"data_config.json file not found at {load_dir}. Loading default values.")
+        num_train_data = 24406
+        num_test_data = 2398
+        num_features = 123
+        min_time = 100
+        max_time = 3000
+
     buffer_size = int(0.1*num_train_data/batch_size_per_GPU)
     shuffle_seed = 42
 
@@ -88,7 +97,7 @@ class FLAGS:
 
     # LANGUAGE MODEL params
     lm_gru_params = {
-        'use': False,
+        'use': True,
         'num_units': [128, 64],
         'batch_norm': True,
         'drop_rates': [0.0, 0.0]
@@ -135,7 +144,7 @@ class PREDICTION_FLAGS(FLAGS):
     }
 
     model = {
-        "path": "d:/!private/lord/git/speech_recognition_2/results/model.h5",
+        "path": "./models/model_pdtsc_with_lm.h5",
     }
 
     # prediction

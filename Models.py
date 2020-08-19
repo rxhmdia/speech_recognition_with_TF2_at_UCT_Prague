@@ -18,24 +18,25 @@ from helpers import console_logger
 
 
 class LanguageModel(Layer):
-    GruSizes = Tuple[int, ...]
+    GruUnits = Tuple[int, ...]
     DropRates = List
 
-    def __init__(self, vocab_size: int, gru_sizes: GruSizes, batch_norm: bool, bn_momentum: float, drop_rates: DropRates):
+    def __init__(self, vocab_size: int, gru_units: GruUnits, batch_norm: bool, bn_momentum: float, drop_rates: DropRates,
+                 name=None, dtype=None, trainable=True):
         """ Simple language model which takes AM output and returns output of same shape
 
         :param vocab_size (int): size of the input vocabulary
-        :param gru_sizes (Tuple[int, ...]): sizes of the GRU hidden units (len represents number of gru layers)
+        :param gru_units (Tuple[int, ...]): sizes of the GRU hidden units (len represents number of gru layers)
         :param batch_norm (bool): whether to use batch normalization after each layer
         :param bn_momentum (float): momentum of batch_normalization layers (unused if batch_norm==False)
         :param drop_rates List[float, ...]: drop rates for Dropout layers after each BGRU layer
         """
-        super(LanguageModel, self).__init__()
+        super(LanguageModel, self).__init__(name=name, dtype=dtype, trainable=trainable)
 
         self._C = vocab_size     # character vocabulary size
-        self._B = gru_sizes      # hidden sizes of BGRU layers
+        self._B = gru_units      # hidden sizes of BGRU layers
         self._D = drop_rates     # drop rates for embedding and bgru layers
-        self._D.extend([0.]*(len(gru_sizes) - len(drop_rates)))  # extend empty dropout rates
+        self._D.extend([0.]*(len(gru_units) - len(drop_rates)))  # extend empty dropout rates
         self.batch_norm = batch_norm
         self.bn_momentum = bn_momentum
 
@@ -67,7 +68,7 @@ class LanguageModel(Layer):
                   "trainable": True,
                   "dtype": float,
                   "vocab_size": self._C,
-                  "gru_units": [2*b for b in self._B],
+                  "gru_units": self._B,
                   "batch_norm": self.batch_norm,
                   "bn_momentum": self.bn_momentum,
                   "drop_rates": list(self._D)}
@@ -83,7 +84,8 @@ class LanguageModel(Layer):
 
 class BGRUwDropout(Layer):
 
-    def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0., kernel_initializer=None, return_sequences=False):
+    def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0.,
+                 kernel_initializer=None, return_sequences=True, name=None, dtype=float, trainable=True):
         """ Bidirectional GRU layer with custom dropout and batch normalization
 
         :param units (int): number of hidden units in GRU cell
@@ -93,7 +95,7 @@ class BGRUwDropout(Layer):
         :param kernel_initializer (tf.keras.initializers.Initializer): initializer for trainable variables
         :param return_sequences (bool): whether to return sequences or only the last output
         """
-        super(BGRUwDropout, self).__init__()
+        super(BGRUwDropout, self).__init__(name=name, dtype=dtype, trainable=trainable)
         self.bgru = Bidirectional(GRU(units,
                                       kernel_initializer=kernel_initializer,
                                       recurrent_initializer=kernel_initializer,
@@ -115,10 +117,10 @@ class BGRUwDropout(Layer):
         return x
 
     def get_config(self):
-        config = {"name": "bgru_with_dropout",
-                  "trainable": True,
+        config = {"trainable": True,
                   "dtype": float,
-                  "units": self.all_units}
+                  "units": self.all_units,
+                  "return_sequences": True}
         return config
 
 
@@ -226,7 +228,6 @@ def build_model(kernel_initializer):
 
     # Language model
     if FLAGS.lm_gru_params['use']:
-        # vocab_size: int, gru_sizes: GruSizes, batch_norm: bool, bn_momentum: float, drop_rates: DropRates
         logits = tf.roll(logits, -1, axis=1)
         # Output logits from LM
         logits = LanguageModel(FLAGS.alphabet_size + 1,
@@ -468,7 +469,10 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
 
     predictions = []
 
-    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf}, compile=False)
+    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf,
+                                                                      'BGRUwDropout': BGRUwDropout,
+                                                                      'LanguageModel': LanguageModel},
+                                       compile=False)
 
     if isinstance(feature_inputs, np.ndarray):
         inputs = [feature_inputs]
