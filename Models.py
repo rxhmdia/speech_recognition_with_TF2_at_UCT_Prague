@@ -22,7 +22,7 @@ class LanguageModel(Layer):
     DropRates = List
 
     def __init__(self, vocab_size: int, gru_units: GruUnits, batch_norm: bool, bn_momentum: float, drop_rates: DropRates,
-                 name=None, dtype=None, trainable=True):
+                 name="language_model", dtype=None, trainable=True):
         """ Simple language model which takes AM output and returns output of same shape
 
         :param vocab_size (int): size of the input vocabulary
@@ -33,6 +33,9 @@ class LanguageModel(Layer):
         """
         super(LanguageModel, self).__init__(name=name, dtype=dtype, trainable=trainable)
 
+        self._name = name
+        self._dtype = dtype
+        self._trainable = trainable
         self._C = vocab_size     # character vocabulary size
         self._B = gru_units      # hidden sizes of BGRU layers
         self._D = drop_rates     # drop rates for embedding and bgru layers
@@ -64,9 +67,9 @@ class LanguageModel(Layer):
         return self.dense(x)
 
     def get_config(self):
-        config = {"name": "bgru_language_model",
-                  "trainable": True,
-                  "dtype": float,
+        config = {"name": self._name,
+                  "trainable": self._trainable,
+                  "dtype": self._dtype,
                   "vocab_size": self._C,
                   "gru_units": self._B,
                   "batch_norm": self.batch_norm,
@@ -85,7 +88,7 @@ class LanguageModel(Layer):
 class BGRUwDropout(Layer):
 
     def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0.,
-                 kernel_initializer=None, return_sequences=True, name=None, dtype=float, trainable=True):
+                 kernel_initializer=None, return_sequences=True, dtype=float, trainable=True):
         """ Bidirectional GRU layer with custom dropout and batch normalization
 
         :param units (int): number of hidden units in GRU cell
@@ -95,7 +98,15 @@ class BGRUwDropout(Layer):
         :param kernel_initializer (tf.keras.initializers.Initializer): initializer for trainable variables
         :param return_sequences (bool): whether to return sequences or only the last output
         """
-        super(BGRUwDropout, self).__init__(name=name, dtype=dtype, trainable=trainable)
+        super(BGRUwDropout, self).__init__(dtype=dtype, trainable=trainable)
+        self._batch_norm = batch_norm
+        self._bn_momentum = bn_momentum
+        self._drop_rate = drop_rate
+        self._dtype = dtype
+        self._hidden_units = units
+        self._return_sequences = return_sequences
+        self._trainable = trainable
+
         self.bgru = Bidirectional(GRU(units,
                                       kernel_initializer=kernel_initializer,
                                       recurrent_initializer=kernel_initializer,
@@ -106,8 +117,6 @@ class BGRUwDropout(Layer):
             self.bn = None
         self.dropout = Dropout(drop_rate)
 
-        self.hidden_units = units
-
     def call(self, x_input, training=False):
         x = self.bgru(x_input)
         if self.bn:
@@ -117,10 +126,13 @@ class BGRUwDropout(Layer):
         return x
 
     def get_config(self):
-        config = {"trainable": True,
-                  "dtype": float,
-                  "units": self.hidden_units,
-                  "return_sequences": True}
+        config = {"units": self._hidden_units,
+                  "batch_norm": self._batch_norm,
+                  "bn_momentum": self._bn_momentum,
+                  "drop_rate": self._drop_rate,
+                  "dtype": self._dtype,
+                  "trainable": self._trainable,
+                  "return_sequences": self._return_sequences}
         return config
 
 
