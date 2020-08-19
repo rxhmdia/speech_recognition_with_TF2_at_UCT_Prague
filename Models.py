@@ -22,7 +22,7 @@ class LanguageModel(Layer):
     DropRates = List
 
     def __init__(self, vocab_size: int, gru_units: GruUnits, batch_norm: bool, bn_momentum: float, drop_rates: DropRates,
-                 name="language_model", dtype=None, trainable=True):
+                 name="language_model", dtype=float, trainable=True):
         """ Simple language model which takes AM output and returns output of same shape
 
         :param vocab_size (int): size of the input vocabulary

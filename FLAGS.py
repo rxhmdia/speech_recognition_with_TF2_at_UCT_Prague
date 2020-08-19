@@ -22,10 +22,12 @@ class FLAGS:
     save_dir = "./results/"
     save_config_as = "FLAGS.py"
     checkpoint_path = None
-    # TODO: Tady Martin Minulovič
-    #  Přidali jsme prototyp LM, tak uvidíme, co to bude dělat oproti předchozím runům
-    #  No rolling now!
-    #  Tried to remove LM, see what it does now
+    # Tried to remove LM, see what it does now
+    # Removing LM didn't help so its somewhere else. Removed softmax from final activations.
+    #  Next - Trying to add LM without BN and DP
+    #  Changed lr from 0.01 to 0.1
+    # TODO:
+    #  Add BN and DP to LM
     num_runs = 2
     max_epochs = 60
     batch_size_per_GPU = 8
