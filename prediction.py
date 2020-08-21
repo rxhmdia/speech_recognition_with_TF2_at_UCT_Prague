@@ -14,6 +14,7 @@ from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
 from Models import predict_from_saved_model
 
+
 def read_chunk(stream, chunk_size):
     data_string = stream.read(chunk_size)
     return np.frombuffer(data_string, dtype=np.float32)

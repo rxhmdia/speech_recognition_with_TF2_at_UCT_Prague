@@ -13,9 +13,9 @@ class FLAGS:
 
     logger_level = "INFO"
 
-    # load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
+    load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
-    load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
+    # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/PDTSC_MFSC_unigram_40_banks_min_100_max_3000_tfrecord_DAspeed/"
     # load_dir = "g:/datasets/ORAL_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/"
     # load_dir = "g:/datasets/COMBINED_MFSC_unigram_40_banks_min_100_max_3000_tfrecord/1.0/"
@@ -146,7 +146,7 @@ class PREDICTION_FLAGS(FLAGS):
     }
 
     model = {
-        "path": "./models/model_pdtsc_with_lm.h5",
+        "path": "./models/model_combined.h5",
     }
 
     # prediction
