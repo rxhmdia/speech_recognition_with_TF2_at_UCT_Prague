@@ -14,7 +14,6 @@ from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
 from Models import predict_from_saved_model
 
-
 def read_chunk(stream, chunk_size):
     data_string = stream.read(chunk_size)
     return np.frombuffer(data_string, dtype=np.float32)
@@ -31,6 +30,7 @@ def record_audio(record_seconds):
                     channels=PREDICTION_FLAGS.recording['channels'],
                     rate=PREDICTION_FLAGS.recording['rate'],
                     input=True,
+                    output=True,
                     frames_per_buffer=chunk_size)
 
     for i in range(PREDICTION_FLAGS.recording['updates_per_second']*record_seconds):
@@ -41,7 +41,7 @@ def record_audio(record_seconds):
 
     timespan = np.arange(0, record_seconds, 1/PREDICTION_FLAGS.recording['rate'])
 
-    return timespan, frames
+    return timespan, frames, stream
 
 
 def plot_audio(timespan, frames, axes=plt):
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
     print("\n_____RECORDING AUDIO_____")
-    timespan, frames = record_audio(5)
+    timespan, frames, stream = record_audio(5)
 
     print("\n_____CONVERTING TO FEATURE REPRESENTATION_____")
     extractor = FeatureExtractor([np.array(frames)], PREDICTION_FLAGS.recording['rate'],
@@ -78,6 +78,13 @@ if __name__ == '__main__':
 
     print("\n_____PREDICTING FROM SAVED MODEL_____")
     predict_from_saved_model(PREDICTION_FLAGS.model['path'], features)
+
+    print("\n_____REPLAYING AUDIO STREAM_____")
+    stream.write(b"".join(frames))
+
+    print("\n_____CLOSING STREAM_____")
+    stream.stop_stream()
+    stream.close()
 
     print("\n_____PLOTTING AUDIO AND FEATURES_____")
     fig, ax = plt.subplots(2)

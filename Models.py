@@ -18,24 +18,28 @@ from helpers import console_logger
 
 
 class LanguageModel(Layer):
-    GruSizes = Tuple[int, ...]
+    GruUnits = Tuple[int, ...]
     DropRates = List
 
-    def __init__(self, vocab_size: int, gru_sizes: GruSizes, batch_norm: bool, bn_momentum: float, drop_rates: DropRates):
+    def __init__(self, vocab_size: int, gru_units: GruUnits, batch_norm: bool, bn_momentum: float, drop_rates: DropRates,
+                 name="language_model", dtype=float, trainable=True):
         """ Simple language model which takes AM output and returns output of same shape
 
         :param vocab_size (int): size of the input vocabulary
-        :param gru_sizes (Tuple[int, ...]): sizes of the GRU hidden units (len represents number of gru layers)
+        :param gru_units (Tuple[int, ...]): sizes of the GRU hidden units (len represents number of gru layers)
         :param batch_norm (bool): whether to use batch normalization after each layer
         :param bn_momentum (float): momentum of batch_normalization layers (unused if batch_norm==False)
         :param drop_rates List[float, ...]: drop rates for Dropout layers after each BGRU layer
         """
-        super(LanguageModel, self).__init__()
+        super(LanguageModel, self).__init__(name=name, dtype=dtype, trainable=trainable)
 
+        self._name = name
+        self._dtype = dtype
+        self._trainable = trainable
         self._C = vocab_size     # character vocabulary size
-        self._B = gru_sizes      # hidden sizes of BGRU layers
+        self._B = gru_units      # hidden sizes of BGRU layers
         self._D = drop_rates     # drop rates for embedding and bgru layers
-        self._D.extend([0.]*(len(gru_sizes) - len(drop_rates)))  # extend empty dropout rates
+        self._D.extend([0.]*(len(gru_units) - len(drop_rates)))  # extend empty dropout rates
         self.batch_norm = batch_norm
         self.bn_momentum = bn_momentum
 
@@ -50,7 +54,7 @@ class LanguageModel(Layer):
             if self.batch_norm:
                 self.bgru_bn.append(BatchNormalization(momentum=self.bn_momentum))
             self.bgru_dropouts.append(Dropout(drop))
-        self.dense = Dense(self._C, activation="softmax")
+        self.dense = Dense(self._C)
 
     def call(self, x_input, training=None):
         x = self.inp(x_input)
@@ -63,11 +67,11 @@ class LanguageModel(Layer):
         return self.dense(x)
 
     def get_config(self):
-        config = {"name": "bgru_language_model",
-                  "trainable": True,
-                  "dtype": float,
+        config = {"name": self._name,
+                  "trainable": self._trainable,
+                  "dtype": self._dtype,
                   "vocab_size": self._C,
-                  "gru_units": [2*b for b in self._B],
+                  "gru_units": self._B,
                   "batch_norm": self.batch_norm,
                   "bn_momentum": self.bn_momentum,
                   "drop_rates": list(self._D)}
@@ -83,7 +87,8 @@ class LanguageModel(Layer):
 
 class BGRUwDropout(Layer):
 
-    def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0., kernel_initializer=None, return_sequences=False):
+    def __init__(self, units: int, batch_norm=False, bn_momentum=0.99, drop_rate=0.,
+                 kernel_initializer=None, return_sequences=True, dtype=float, trainable=True):
         """ Bidirectional GRU layer with custom dropout and batch normalization
 
         :param units (int): number of hidden units in GRU cell
@@ -93,7 +98,15 @@ class BGRUwDropout(Layer):
         :param kernel_initializer (tf.keras.initializers.Initializer): initializer for trainable variables
         :param return_sequences (bool): whether to return sequences or only the last output
         """
-        super(BGRUwDropout, self).__init__()
+        super(BGRUwDropout, self).__init__(dtype=dtype, trainable=trainable)
+        self._batch_norm = batch_norm
+        self._bn_momentum = bn_momentum
+        self._drop_rate = drop_rate
+        self._dtype = dtype
+        self._hidden_units = units
+        self._return_sequences = return_sequences
+        self._trainable = trainable
+
         self.bgru = Bidirectional(GRU(units,
                                       kernel_initializer=kernel_initializer,
                                       recurrent_initializer=kernel_initializer,
@@ -104,8 +117,6 @@ class BGRUwDropout(Layer):
             self.bn = None
         self.dropout = Dropout(drop_rate)
 
-        self.all_units = int(units*2)
-
     def call(self, x_input, training=False):
         x = self.bgru(x_input)
         if self.bn:
@@ -115,10 +126,13 @@ class BGRUwDropout(Layer):
         return x
 
     def get_config(self):
-        config = {"name": "bgru_with_dropout",
-                  "trainable": True,
-                  "dtype": float,
-                  "units": self.all_units}
+        config = {"units": self._hidden_units,
+                  "batch_norm": self._batch_norm,
+                  "bn_momentum": self._bn_momentum,
+                  "drop_rate": self._drop_rate,
+                  "dtype": self._dtype,
+                  "trainable": self._trainable,
+                  "return_sequences": self._return_sequences}
         return config
 
 
@@ -221,20 +235,18 @@ def build_model(kernel_initializer):
         for ff_num_units, drop_rate in zip(FLAGS.ff_params['num_units'], FLAGS.ff_params['drop_rates']):
             x = ff(x, ff_num_units, kernel_initializer, FLAGS.ff_params['batch_norm'], drop_rate)
 
+    # Output logits from AM
+    logits = Dense(FLAGS.alphabet_size + 1)(x)
+
     # Language model
     if FLAGS.lm_gru_params['use']:
-        # vocab_size: int, gru_sizes: GruSizes, batch_norm: bool, bn_momentum: float, drop_rates: DropRates
-        x = Dense(FLAGS.alphabet_size + 1)(x)
-        x = tf.roll(x, -1, axis=1)
+        logits = tf.roll(logits, -1, axis=1)
         # Output logits from LM
         logits = LanguageModel(FLAGS.alphabet_size + 1,
                                FLAGS.lm_gru_params['num_units'],
                                FLAGS.lm_gru_params['batch_norm'],
                                FLAGS.bn_momentum,
-                               FLAGS.lm_gru_params['drop_rates'])(x)
-    else:
-        # Output logits from AM
-        logits = Dense(FLAGS.alphabet_size + 1, activation="softmax")(x)
+                               FLAGS.lm_gru_params['drop_rates'])(logits)
 
     return Model(inputs=x_in, outputs=logits)
 
@@ -469,7 +481,10 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
 
     predictions = []
 
-    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf}, compile=False)
+    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf,
+                                                                      'BGRUwDropout': BGRUwDropout,
+                                                                      'LanguageModel': LanguageModel},
+                                       compile=False)
 
     if isinstance(feature_inputs, np.ndarray):
         inputs = [feature_inputs]
