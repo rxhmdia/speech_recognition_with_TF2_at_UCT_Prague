@@ -4,15 +4,17 @@
 # TODO: load model
 
 import os
+import re
 
 import pyaudio
 import numpy as np
-import tensorflow as tf
 from matplotlib import pyplot as plt
 
 from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
 from Models import predict_from_saved_model
+
+from transformer_support import masked_pipeline_from_trained_model
 
 
 def read_chunk(stream, chunk_size):
@@ -62,9 +64,41 @@ def plot_audio(timespan, frames, axes=plt):
         axes.ylabel(ylabel_str)
 
 
+def decode_numeric_predictions(predictions):
+    decoded_predictions = []
+    for i, prediction in enumerate(predictions):
+        for j, decoded_path in enumerate(prediction):
+            sentence = "".join([PREDICTION_FLAGS.n2c_map[int(c)] for c in decoded_path[0, :] if int(c) != -1])
+            decoded_predictions.append((i, j, sentence))
+    return decoded_predictions
+
+
+def mask_sentence(sentence, fill_mask_pipeline):
+    words = sentence.split(" ")
+    nW = len(words)
+    for i in range(nW):
+        words[i] = "[MASK]"
+        masked_sent = " ".join(words)
+        if i+1 == nW:
+            masked_sent += "."
+        results = fill_mask_pipeline(masked_sent)
+        top_sent = re.sub(r"(\[CLS\]|\[SEP\])", "", results[0]["sequence"])
+        print(top_sent)
+
+        # TODO: continue
+
+        sentence = top_sent
+        words = sentence.split(" ")
+
+    return sentence
+
+
 if __name__ == '__main__':
     # set logging to only show errors
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+    print("\n_____INITIALIZING LANGUAGE MODEL PIPELINE_____")
+    lm_mask_pipeline = masked_pipeline_from_trained_model(PREDICTION_FLAGS.models['lm_path'])
 
     print("\n_____RECORDING AUDIO_____")
     timespan, frames, stream = record_audio(5)
@@ -78,7 +112,17 @@ if __name__ == '__main__':
     features = extractor.transform_data()[0]
 
     print("\n_____PREDICTING FROM SAVED MODEL_____")
-    predict_from_saved_model(PREDICTION_FLAGS.model['path'], features)
+    predictions = predict_from_saved_model(PREDICTION_FLAGS.models['am_path'], features)
+
+    print("\n_____DECODING PREDICTIONS_____")
+    decoded_predictions = decode_numeric_predictions(predictions)
+
+    print("\n_____RUNNING THROUGH LANGUAGE MODEL_____")
+    sentence = mask_sentence(decoded_predictions[0][2], lm_mask_pipeline)
+
+    print("\n_____RESULT_____")
+    print(f"AM: {decoded_predictions[0][2]}")
+    print(f"LM: {sentence}")
 
     print("\n_____REPLAYING AUDIO STREAM_____")
     stream.write(b"".join(frames))

@@ -9,10 +9,11 @@ if __name__ == '__main__':
                   transcript_folder,
                   save_folder,
                   dataset="pdtsc",
+                  digitize_numbers=True,
                   speeds=(1.0, ),
                   mode="move",
-                  delete_unused=False,
-                  delete_converted=False,
+                  delete_unused=True,
+                  delete_converted=True,
                   debug=False)
 
     dp.run()

@@ -3,15 +3,17 @@ from helpers import console_logger
 
 class FLAGS:
     # noinspection DuplicatedCode
-    c2n_map = {'a': 0, 'á': 1, 'b': 2, 'c': 3, 'č': 4, 'd': 5, 'ď': 6, 'e': 7, 'é': 8, 'ě': 9,
-               'f': 10, 'g': 11, 'h': 12, 'ch': 13, 'i': 14, 'í': 15, 'j': 16, 'k': 17, 'l': 18, 'm': 19,
-               'n': 20, 'ň': 21, 'o': 22, 'ó': 23, 'p': 24, 'q': 25, 'r': 26, 'ř': 27, 's': 28, 'š': 29,
-               't': 30, 'ť': 31, 'u': 32, 'ú': 33, 'ů': 34, 'v': 35, 'w': 36, 'x': 37, 'y': 38, 'ý': 39,
-               'z': 40, 'ž': 41, ' ': 42}
+    c2n_map = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+               'a': 10, 'á': 11, 'b': 12, 'c': 13, 'č': 14, 'd': 15, 'ď': 16, 'e': 17, 'é': 18, 'ě': 19,
+               'f': 20, 'g': 21, 'h': 22, 'ch': 23, 'i': 24, 'í': 25, 'j': 26, 'k': 27, 'l': 28, 'm': 29,
+               'n': 30, 'ň': 31, 'o': 32, 'ó': 33, 'p': 34, 'q': 35, 'r': 36, 'ř': 37, 's': 38, 'š': 39,
+               't': 40, 'ť': 41, 'u': 42, 'ú': 43, 'ů': 44, 'v': 45, 'w': 46, 'x': 47, 'y': 48, 'ý': 49,
+               'z': 50, 'ž': 51, ' ': 52}
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
     logger_level = "INFO"
+    logger = console_logger(__name__, logger_level)
 
     load_dir = "b:/!temp/PDTSC_MFSC_Debug/"
     # load_dir = "g:/datasets/PDTSC_Debug/"
@@ -32,6 +34,8 @@ class FLAGS:
     max_epochs = 60
     batch_size_per_GPU = 8
 
+    fs = 16000  # sampling rate of the loaded audiofiles
+
     # noinspection DuplicatedCode
     try:
         with open(load_dir + "data_config.json", "r") as f:
@@ -42,7 +46,7 @@ class FLAGS:
             min_time = dc["min_time"]  # 100
             max_time = dc["max_time"]  # 3000
     except FileNotFoundError:
-        print(f"data_config.json file not found at {load_dir}. Loading default values.")
+        logger.warning(f"data_config.json file not found at {load_dir}. Loading default values.")
         num_train_data = 24406
         num_test_data = 2398
         num_features = 123
@@ -145,8 +149,9 @@ class PREDICTION_FLAGS(FLAGS):
         "deltas": (2, 2),
     }
 
-    model = {
-        "path": "./models/model_combined.h5",
+    models = {
+        "am_path": "./models/model_combined.h5",
+        "lm_path": "bert-base-multilingual-uncased"
     }
 
     # prediction

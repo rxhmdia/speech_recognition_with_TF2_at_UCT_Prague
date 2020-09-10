@@ -4,6 +4,7 @@ import os
 import shutil
 
 from copy import deepcopy
+from collections import defaultdict
 from math import factorial
 from itertools import compress
 
@@ -11,10 +12,13 @@ from itertools import compress
 import numpy as np
 import tensorflow as tf
 import soundfile as sf  # for loading audio in various formats (OGG, WAV, FLAC, ...)
+import librosa as lb
+import pandas as pd
 
 from bs4 import BeautifulSoup
 from pysndfx import AudioEffectsChain
 
+from DigitOps import DigitTranscriber
 from FeatureExtraction import FeatureExtractor
 from FLAGS import FLAGS
 from helpers import console_logger, extract_channel, if_bool, if_float, if_int, if_str
@@ -34,11 +38,12 @@ class DataLoader:
     c2n_map = FLAGS.c2n_map
     n2c_map = FLAGS.n2c_map
 
-    def __init__(self, audiofiles, transcripts, bigrams=False, repeated=False):
+    def __init__(self, audiofiles, transcripts, digitize_numbers=False, bigrams=False, repeated=False):
         """ Initialize DataLoader() object
 
         :param audiofiles: List[paths] to audio files
         :param transcripts: List[paths] to transcripts of the audio files
+        :param digitize_numbers: (bool) should words that represent numbers be transcribed to corresponding digits?
         :param bigrams: (bool) whether the labels should be made into bigrams or not
         :param repeated: (bool) whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
         """
@@ -59,6 +64,9 @@ class DataLoader:
         self.ends = [np.array(0, dtype=np.float32)]*len(self.transcripts)
         self.tokens = [[]]*len(self.transcripts)
         self.labels = [[np.array(0, dtype=np.int32)]]*len(self.transcripts)
+
+        self.digitize_numbers = digitize_numbers
+        self.dt = DigitTranscriber()
 
         if self.bigrams:
             self.b2n_map = self.calc_bigram_map(self.c2n_map, repeated=self.repeated)
@@ -230,8 +238,8 @@ class DataLoader:
 
 class PDTSCLoader(DataLoader):
 
-    def __init__(self, audiofiles, transcripts, bigrams=False, repeated=False):
-        super().__init__(audiofiles, transcripts, bigrams, repeated)
+    def __init__(self, audiofiles, transcripts, digitize_numbers=False, bigrams=False, repeated=False):
+        super().__init__(audiofiles, transcripts, digitize_numbers, bigrams, repeated)
 
     @staticmethod
     def time2secms(timelist):
@@ -264,9 +272,10 @@ class PDTSCLoader(DataLoader):
             token_tags = [LM.find_all('token') for LM in lm_tags]
 
             # process the tokens from token tags
-            regexp = r'[^A-Za-záéíóúýčďěňřšťůž]+'  # find all non alphabetic characters (Czech alphabet)
+            regexp = r'[^{}]+'.format("".join(FLAGS.c2n_map.keys()))
+            # regexp = r'[^A-Za-záéíóúýčďěňřšťůž0123456789]+'  # find all non alphabetic characters (Czech alphabet)
             tokens = [' '.join([re.sub(regexp, '', token.text.lower()) for token in tokens])
-                      for tokens in token_tags]  # joining sentences and removing special and numeric chars
+                      for tokens in token_tags]  # joining sentences and removing special chars
 
             empty_idcs = [i for i, token in enumerate(tokens) if not token]  # getting indices of empty tokens
 
@@ -275,7 +284,12 @@ class PDTSCLoader(DataLoader):
             end_time_tags = [tag for i, tag in enumerate(end_time_tags) if i not in empty_idcs]
             tokens = [token for i, token in enumerate(tokens) if i not in empty_idcs]
 
-            # save the start times, ent times and tokens to instance variables
+            if self.digitize_numbers:
+                # transcribe words that signify numeric values to their respective digits
+                tokens = [self.dt.transcribe(token) for token in tokens]
+
+
+            # save the start times, end times and tokens to instance variables
             self.starts[i] = self.time2secms([start.text for start in start_time_tags])
             self.ends[i] = self.time2secms([end.text for end in end_time_tags])
             self.tokens[i] = tokens
@@ -322,9 +336,10 @@ class PDTSCLoader(DataLoader):
 
     def load_audio(self):
         for i, file in enumerate(self.audiofiles):
-            signal, self.fs[i] = sf.read(file)
+            # signal, self.fs[i] = sf.read(file)
+            signal, self.fs[i] = lb.load(file, sr=FLAGS.fs)
 
-            signal = extract_channel(signal, 0)  # convert signal from stereo to mono by extracting channel 0
+            # signal = extract_channel(signal, 0)  # convert signal from stereo to mono by extracting channel 0
 
             tstart = 0
             tend = signal.shape[0]/self.fs[i]
@@ -347,11 +362,11 @@ class PDTSCLoader(DataLoader):
 
 
 class OralLoader(DataLoader):
-    c2n_map = DataLoader.c2n_map
-    c2n_map['*'] = 13  # ch character is subbed as * but in the reverse map it is still 'ch'
+    c2n_map = deepcopy(FLAGS.c2n_map)
+    c2n_map["*"] = c2n_map.pop("ch")  # ch character is subbed as * but in the reverse map it is still 'ch'
 
-    def __init__(self, audiofiles, transcripts, bigrams=False, repeated=False):
-        super().__init__(audiofiles, transcripts, bigrams, repeated)
+    def __init__(self, audiofiles, transcripts, digitize_numbers=False, bigrams=False, repeated=False):
+        super().__init__(audiofiles, transcripts, digitize_numbers, bigrams, repeated)
         self.labels = None
         self.audio = dict()  # audiofile dictionary with filenames as keys
         self.fs = dict()  # sampling frequencies of the audiofiles with filenames as keys
@@ -361,7 +376,7 @@ class OralLoader(DataLoader):
         turn_info_no_overlap = [list() for _ in range(len(self.transcripts))]
         reg_ch = r'ch'  # any sequence of characters 'ch' ... which counts as a single character in Czech
         reg_pthses = r'\(.*?\)'  # any character between parentheses () -- in oral it marks special sounds (laugh, ambient, ...)
-        reg_not_czech = r'[^A-Za-záéíóúýčďěňřšťůž ]+'  # all nonalphabetic characters (czech alphabet)
+        reg_not_czech = r'[^{}]+'.format("".join(FLAGS.c2n_map.keys())) # all nonalphabetic characters (czech alphabet)
         labels = dict()
         for idx, file in enumerate(self.transcripts):
             with open(file, 'r', encoding='cp1250') as f:
@@ -421,6 +436,10 @@ class OralLoader(DataLoader):
                         sent_duration = sync_times[i][1] - sync_times[i][0]
                         sents.append(text[i])
 
+            if self.digitize_numbers:
+                # transcribe words that signify numeric values to their respective digits
+                sents = [self.dt.transcribe(sent) for sent in sents]
+
             # convert the sentences into integer arrays
             sents = [np.array([self.c2n_map[c] for c in re.sub(reg_ch, '*', s)]) for s in sents]
             labels[file_name] = tuple(zip(sents, starts, ends))
@@ -434,7 +453,8 @@ class OralLoader(DataLoader):
             path, filename = os.path.split(file)
             filename, ext = os.path.splitext(filename)
 
-            signal, fs = sf.read(file)
+            # signal, fs = sf.read(file)
+            signal, fs = lb.load(file, sr=FLAGS.fs)
 
             # create array with sampling times of the audiofile
             tstart = 0
@@ -526,6 +546,55 @@ class OralLoader(DataLoader):
 
         return labels
 
+
+class CommonVoiceLoader(DataLoader):
+    c2n_map = deepcopy(FLAGS.c2n_map)
+    c2n_map["*"] = c2n_map.pop("ch")  # ch character is subbed as * but in the reverse map it is still 'ch'
+
+    def __init__(self, transcripts, transcribe_digits=False):
+        super(CommonVoiceLoader, self).__init__(audiofiles=["dummy"], transcripts=transcripts, digitize_numbers=False)
+        # bigrams not supported
+        self.audiofiles = dict()
+        self.transcripts = [if_str(t) for t in transcripts]  # in CV one transcript file is for the whole dataset
+        self.transcribe_digits = transcribe_digits
+
+        self.fs = defaultdict(lambda: [])
+        self.audio = defaultdict(lambda: [])
+        self.labels = dict()
+
+    def transcripts_to_labels(self, audio_folder_name="clips"):
+
+        for transcript in self.transcripts:
+            df = pd.read_csv(transcript, sep="\t")
+            root, nameext = os.path.split(transcript)
+            name = os.path.splitext(nameext)[0]
+            sentences = df.iloc[:, 2]
+            audiopaths = df.iloc[:, 1]
+
+            self.audiofiles[name] = [os.path.join(root, audio_folder_name, str(p).split(".")[0]+".wav") for p in audiopaths]
+
+            if self.transcribe_digits:
+                # digitize text representing numbers
+                sentences = [self.dt.transcribe(sent) for sent in sentences]
+
+            # transform transcripts into labels
+            reg_not_czech = r'[^{}]+'.format("".join(FLAGS.c2n_map.keys()))
+            sentences = [re.sub(reg_not_czech, '', sent.lower()) for sent in sentences]  # remove non-alphanumeric chars
+            sentences = [np.array([self.c2n_map[c] for c in re.sub(r'(ch)', '*', s)]) for s in sentences]
+            self.labels[name] = sentences
+
+        return self.labels
+
+    def load_audio(self):
+        if not self.audiofiles:
+            raise RuntimeError("audiofiles dict is empty. First run self.transcripts_to_labels")
+        else:
+            for name, files in self.audiofiles.items():
+                for file in files:
+                    audio, fs = lb.load(file, sr=FLAGS.fs)
+                    self.audio[name].append(audio)
+                self.fs[name].append(fs)
+        return self.audio, self.fs
 
 """#####################################################################################################################
 ### |                                                                                                              | ###
@@ -751,9 +820,10 @@ def load_datasets(load_dir,
 
 class DataPrep:
     # allowed and default values for init
-    __datasets = ("pdtsc", "oral")
+    __datasets = ("pdtsc", "oral", "cv")  # "cv" not fully implemented yet
     __feature_types = ("MFSC", "MFCC")
     __label_types = ("unigram", "bigram")
+    __digitize_numbers = False
     __repeated = False
     __energy = True
     __deltas = (2, 2)
@@ -775,13 +845,13 @@ class DataPrep:
     __debug = False
 
     def __init__(self, audio_folder, transcript_folder, save_folder, dataset=__datasets[0],
-                 feature_type=__feature_types[0], label_type=__label_types[0], repeated=__repeated,
-                 energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan, sort=__sort,
-                 oral_max_duration=__oral_max_duration, speeds=__speeds, min_frame_length=__min_frame_length,
-                 max_frame_length=__max_frame_length, mode=__modes[0], delete_unused=__delete_unused,
-                 feature_names=__feature_names, label_names=__label_names, tt_split_ratio=__tt_split_ratio,
-                 train_shard_size=__train_shard_size, test_shard_size=__test_shard_size,
-                 delete_converted=__delete_converted, debug=__debug):
+                 feature_type=__feature_types[0], label_type=__label_types[0], digitize_numbers=__digitize_numbers,
+                 repeated=__repeated, energy=__energy, deltas=__deltas, nbanks=__nbanks, filter_nan=__filter_nan,
+                 sort=__sort, oral_max_duration=__oral_max_duration, speeds=__speeds,
+                 min_frame_length=__min_frame_length, max_frame_length=__max_frame_length, mode=__modes[0],
+                 delete_unused=__delete_unused, feature_names=__feature_names, label_names=__label_names,
+                 tt_split_ratio=__tt_split_ratio, train_shard_size=__train_shard_size,
+                 test_shard_size=__test_shard_size, delete_converted=__delete_converted, debug=__debug):
         """ End-to-end data preparation of raw features and labels into tfrecord files ready to be fed into the AM
 
         :param audio_folder (string): path to folder with raw audio files (.wav or .ogg)
@@ -790,6 +860,7 @@ class DataPrep:
         :param dataset (string): which dataset is to be expected (allowed:"pdtsc" or "oral")
         :param feature_type (string): which feature type should the data be converted to (allowed: "MFSC" or "MFCC")
         :param label_type (string): type of labels (so far only "unigram" is implemented)
+        :param digitize_numbers (bool): convert words that represent numbers to digits
         :param repeated (bool): whether the bigrams should contain repeated characters (eg: 'aa', 'bb')
         :param energy (bool): whether energy feature should be included into feature matrix
         :param deltas (Tuple[int, int]): area from which to calculate differences for deltas and delta-deltas
@@ -828,6 +899,7 @@ class DataPrep:
         else:
             raise AttributeError(f"label_type must be one of: {self.__label_types}")
 
+        self.digitize_numbers = if_bool(digitize_numbers, "digitize_numbers")
         self.repeated = if_bool(repeated, "repeated")
         self.energy = if_bool(energy, "energy")
 
@@ -853,6 +925,7 @@ class DataPrep:
                                            f'{self.dataset.upper()}_{self.feature_type}_{self.label_type}'
                                            f'_{self.nbanks}_banks{"_DEBUG" if self.debug else ""}/')
         self.__framestride = None
+        self.digit_counter = defaultdict(lambda: 0)
 
         # 02_feature_length_range params
         self.min_frame_length = if_int(min_frame_length)
@@ -910,7 +983,7 @@ class DataPrep:
             LOGGER.debug(f"Current save_path: {save_path}")
             for i, file in enumerate(files):
                 if self.dataset == "pdtsc":
-                    pdtsc = PDTSCLoader([file[0]], [file[1]], self.bigrams, self.repeated)
+                    pdtsc = PDTSCLoader([file[0]], [file[1]], self.digitize_numbers, self.bigrams, self.repeated)
                     labels = pdtsc.transcripts_to_labels()  # list of lists of 1D numpy arrays
                     labels = labels[0]  # flatten label list
                     audio_list, fs = pdtsc.load_audio()
@@ -919,7 +992,7 @@ class DataPrep:
                     LOGGER.debug(
                         f"Loaded PDTSC with fs {fs} from:\n \t audio_path: {file[0]}\n \t transcript_path: {file[1]}")
                 elif self.dataset == "oral":
-                    oral = OralLoader([file[0]], [file[1]], self.bigrams, self.repeated)
+                    oral = OralLoader([file[0]], [file[1]], self.digitize_numbers, self.bigrams, self.repeated)
                     label_dict = oral.transcripts_to_labels(
                         oral_max_duration)  # Dict['file_name':Tuple[sents_list, starts_list, ends_list]]
                     audio_dict, fs_dict = oral.load_audio()  # Dicts['file_name']
@@ -929,6 +1002,9 @@ class DataPrep:
                     fs = fs_dict[file_names[i]]
                     LOGGER.debug(
                         f"Loaded ORAL with fs {fs} from:\n \t audio_path: {file[0]}\n \t transcript_path: {file[1]}")
+                elif self.dataset == "cv":
+                    cv = CommonVoiceLoader([file])
+                    # TODO: continue this wild ride later
                 else:
                     raise ValueError("'dataset' argument must be either 'pdtsc' or 'oral'")
 
@@ -994,6 +1070,21 @@ class DataPrep:
                     cepstra_length_list.append(
                         (loaded_cepstra_paths[j], loaded_label_paths[j], loaded_cepstra[j].shape[0]))
                 LOGGER.debug(f'files from {file_names[i]} transformed and saved into {os.path.abspath(save_path)}.')
+
+                # print number digitization results
+                if self.digitize_numbers:
+                    LOGGER.debug(f"Digits in file: {file}")
+                    if "pdtsc" in self.dataset:
+                        counter = pdtsc.dt.count_nonzero()
+                    elif "oral" in self.dataset:
+                        counter = oral.dt.count_nonzero()
+                    elif "cv" in self.dataset:
+                        counter = cv.dt.count_nonzero()
+
+                    for k, v in counter.items():
+                        self.digit_counter[k] += v
+
+                    LOGGER.info(f"\t dc: {self.digit_counter}")
 
             # sort cepstra and labels by time length (number of frames)
             if self.sort:

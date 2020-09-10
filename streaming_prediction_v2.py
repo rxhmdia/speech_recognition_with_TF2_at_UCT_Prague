@@ -183,6 +183,7 @@ def listen_print_loop(responses, stream):
 
             stream.last_transcript_was_final = False
 
+
 if __name__ == '__main__':
     with ResumableMicrophoneStream(CHUNK_SIZE, SAMPLE_RATE) as stream:
         audio_generator = stream.generator()

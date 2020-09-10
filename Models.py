@@ -507,11 +507,6 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
                                                    top_paths=top_paths)
 
         dense_decoded = [tf.sparse.to_dense(d, default_value=-1) for d in decoded]
-
-        for j, decoded_path in enumerate(dense_decoded):
-            print("Prediction {} | Path {}: {}".format(i, j, "".join([PREDICTION_FLAGS.n2c_map[int(c)]
-                                                                      for c in decoded_path[0, :] if int(c) != -1])))
-
         predictions.append(dense_decoded)
 
     return predictions
