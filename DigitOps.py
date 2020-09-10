@@ -4,6 +4,18 @@ import re
 from collections import defaultdict
 
 
+def _combine_digits(d2re_base):
+    d2re = defaultdict(lambda: r"")
+    for d in range(0, 91, 10):  # 0, 10, 20, 30, ... 90
+        for j in range(0, 10):  # 0, 1, 2, ... 9
+            key = d + j
+            if key in d2re_base.keys():
+                d2re[key] = d2re_base[key]
+            else:
+                d2re[key] = r" ".join([d2re_base[d], d2re_base[j]])
+    return d2re
+
+
 class DigitTranscriber:
     D2RE_BASE = {0: r"\bnul\w+",
                  1: r"\bjedn\w+",
@@ -34,20 +46,19 @@ class DigitTranscriber:
                  80: r"\bosmdesát\w*",
                  90: r"\bdevadesát\w*"}
 
+    d2re = _combine_digits(D2RE_BASE)
+    d2re_list = [(k, v) for k, v in d2re.items()]
+    d2re_list.sort(key=lambda tup: tup[0], reverse=True)  # sort from highest to lowest key
+    d2re_tuple = tuple(d2re_list)
+
     def __init__(self):
-        self.d2re = self._combine_digits()
-
-        d2re_list = [(k, v) for k, v in self.d2re.items()]
-        d2re_list.reverse()  # higher numbers first
-        self.d2re_tuple = tuple(d2re_list)
-
         self._counter = defaultdict(lambda: 0)
 
-    def transcribe(self, sentence):
+    def transcribe(self, sent):
         for k, v in self.d2re_tuple:
-            sentence, count = re.subn(v, str(k), sentence, flags=re.I)
+            sent, count = re.subn(v, str(k), sent, flags=re.I)
             self._counter[k] += count
-        return sentence
+        return sent
 
     def get_counter(self):
         return self._counter
@@ -58,17 +69,6 @@ class DigitTranscriber:
     def print_nonzero_counts(self):
         print(self.count_nonzero().items())
 
-    def _combine_digits(self):
-        d2re_base = self.D2RE_BASE
-        d2re = defaultdict(lambda: r"")
-        for d in range(0, 91, 10):  # 0, 10, 20, 30, ... 90
-            for j in range(0, 10):  # 0, 1, 2, ... 9
-                key = d + j
-                if key in d2re_base.keys():
-                    d2re[key] = d2re_base[key]
-                else:
-                    d2re[key] = r" ".join([d2re_base[d], d2re_base[j]])
-        return d2re
 
 if __name__ == '__main__':
     dt = DigitTranscriber()
