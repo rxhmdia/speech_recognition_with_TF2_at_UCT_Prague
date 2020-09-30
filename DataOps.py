@@ -977,6 +977,7 @@ class DataPrep:
         file_names = self._get_file_names(files)
 
         for speed in speeds:
+            self.digit_counter.clear()
             LOGGER.info(f"Create audio_transormer for speed {speed}")
             audio_transformer = (AudioEffectsChain().speed(speed))
             save_path = os.path.join(self.full_save_path, f"{speed}/")
@@ -1263,7 +1264,8 @@ class DataPrep:
                                                   "num_rest_data": 0,
                                                   "num_features": self._num_features,
                                                   "min_time": self.min_frame_length,
-                                                  "max_time": self.max_frame_length}
+                                                  "max_time": self.max_frame_length,
+                                                  "digit_counter": self.digit_counter}
 
         data_len = len(sorted_list)
         data_size = sum(sfs[1] for sfs in sorted_list)

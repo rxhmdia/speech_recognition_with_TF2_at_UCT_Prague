@@ -5,16 +5,22 @@ from typing import Tuple, List
 import numpy as np
 import tensorflow as tf
 
+from autocorrect import Speller
 from tensorflow.keras.layers import Layer, InputLayer, Reshape, Conv2D, Dropout, BatchNormalization, GRU, Bidirectional, Dense, ReLU, Permute, Lambda
 from tensorflow.keras import Model
 import tensorflow.keras.backend as K
 
 from tqdm import tqdm
 
-from DataOps import load_datasets
+from DataOps import load_datasets, DataLoader
+from DigitOps import DigitTranscriber
 from FLAGS import FLAGS, PREDICTION_FLAGS
 from utils import create_save_path, save_config, decay_value
 from helpers import console_logger
+
+
+SPELL = Speller('cs', fast=False, threshold=2)
+DT = DigitTranscriber()
 
 
 class LanguageModel(Layer):
@@ -369,7 +375,7 @@ def train_fn(model, dataset, optimizer, loss, num_batches, epoch):
     return mean_loss
 
 
-def test_fn(model, dataset, loss, cer, num_batches, epoch):
+def test_fn(model, dataset, loss, cer, ccer, num_batches, epoch):
     batch_no = 0
     _, _, time_reduce_rate, _ = _conv_reduce_rate(FLAGS.max_time, FLAGS.num_features)
     with tqdm(range(num_batches), unit="batch") as timer:
@@ -378,19 +384,50 @@ def test_fn(model, dataset, loss, cer, num_batches, epoch):
             loss.update_state(mean_loss)
             cer.update_state(mean_cer)
             timer.update(1)
+            predictions = []
+            truths = []
+            for i in range(len(decoded)):
+                prediction = "".join([FLAGS.n2c_map[int(c)] for c in decoded[i, :] if int(c) != -1])
+                truth = "".join([FLAGS.n2c_map[int(c)] for c in inputs[1][i, :] if int(c) != -1])
+                if FLAGS.spell_check:
+                    prediction = SPELL(prediction)
+                if FLAGS.transcribe_digits:
+                    prediction = DT.transcribe(prediction)
+                    truth = DT.transcribe(truth)
+                predictions.append(prediction)
+                truths.append(truth)
+
+            pred_array = DataLoader.char2num(predictions, FLAGS.c2n_map)
+            truth_array = DataLoader.char2num(truths, FLAGS.c2n_map)
+
+            pred_lens = tf.cast([len(s) for s in pred_array], tf.int32)
+            truth_lens = tf.cast([len(s) for s in truth_array], tf.int32)
+
+            pred_array = tf.keras.preprocessing.sequence.pad_sequences(pred_array, value=-1)
+            truth_array = tf.keras.preprocessing.sequence.pad_sequences(truth_array, value=-1)
+
+            pred_sparse = K.ctc_label_dense_to_sparse(tf.cast(pred_array, tf.int32), pred_lens)
+            truth_sparse = K.ctc_label_dense_to_sparse(tf.cast(truth_array, tf.int32), truth_lens)
+
+            mean_ccer = tf.reduce_mean(tf.edit_distance(pred_sparse, truth_sparse))
+            ccer.update_state(mean_ccer)
+
             if tf.equal(batch_no % 100, 0):
-                print("\nBatch {} | Loss {} | CER {}".format(batch_no, mean_loss, mean_cer))
-                print("Prediction: {}".format("".join([FLAGS.n2c_map[int(c)] for c in decoded[0, :] if int(c) != -1])))
-                print("Truth: {}".format("".join([FLAGS.n2c_map[int(c)] for c in inputs[1][0, :] if int(c) != -1])))
+                print(f"\nBatch {batch_no} | Loss {mean_loss} | CER {mean_cer} | cCER {mean_ccer}")
+                print(f"Prediction: {predictions[0]}")
+                print(f"Truth: {truths[0]}")
             batch_no += 1
     mean_loss = loss.result()
     mean_cer = cer.result()
-    print("Mean Loss: {}".format(mean_loss))
-    print("Mean CER: {}".format(mean_cer))
+    mean_ccer = ccer.result()
+    print(f"Mean Loss: {mean_loss}")
+    print(f"Mean CER: {mean_cer} | Mean cCER: {mean_ccer}")
     tf.summary.scalar('mean_loss', mean_loss, step=epoch, description='mean test loss')
     tf.summary.scalar('mean_cer', mean_cer, step=epoch, description='mean test character error rate')
+    tf.summary.scalar('mean_ccer', mean_ccer, step=epoch, description='CER after spell checking and digitizing.')
     loss.reset_states()
     cer.reset_states()
+    ccer.reset_states()
 
     return mean_loss, mean_cer
 
@@ -444,6 +481,7 @@ def train_model(run_number):
     train_loss = tf.keras.metrics.Mean(name='train_loss', dtype=tf.float32)
     test_loss = tf.keras.metrics.Mean(name='test_loss', dtype=tf.float32)
     test_cer = tf.keras.metrics.Mean(name='test_cer', dtype=tf.float32)
+    test_ccer = tf.keras.metrics.Mean(name="test_ccer", dtype=tf.float32)
 
     for epoch in range(FLAGS.max_epochs):
         logger.log(35, f'_______| Run {run_number} | Epoch {epoch} |_______')
@@ -456,7 +494,7 @@ def train_model(run_number):
         # TESTING DATA
         with summary_writer_test.as_default():
             logger.info(f"Testing model.")
-            _, test_mean_cer = test_fn(model, ds_test, test_loss, test_cer, num_test_batches, epoch)
+            _, test_mean_cer = test_fn(model, ds_test, test_loss, test_cer, test_ccer, num_test_batches, epoch)
 
         # EARLY STOPPING AND KEEPING THE BEST MODEL
         stop_training, best_cer, best_epoch = early_stopping(model, test_mean_cer, best_cer, epoch, best_epoch, save_path)
@@ -510,6 +548,19 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
         predictions.append(dense_decoded)
 
     return predictions
+
+
+def convert_to_strings(predictions, apply_autocorrect=False, digitize=False):
+    decoded_predictions = []
+    for i, prediction in enumerate(predictions):
+        for j, decoded_path in enumerate(prediction):
+            sentence = "".join([PREDICTION_FLAGS.n2c_map[int(c)] for c in decoded_path[0, :] if int(c) != -1])
+            if apply_autocorrect:
+                sentence = SPELL(sentence)
+            if digitize:
+                sentence = DT.transcribe(sentence)
+            decoded_predictions.append((i, j, sentence))
+    return decoded_predictions
 
 
 if __name__ == '__main__':

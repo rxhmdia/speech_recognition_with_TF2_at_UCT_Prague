@@ -10,9 +10,10 @@ import pyaudio
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
-from Models import predict_from_saved_model
+from Models import predict_from_saved_model, convert_to_strings
 
 from transformer_support import masked_pipeline_from_trained_model
 
@@ -64,15 +65,6 @@ def plot_audio(timespan, frames, axes=plt):
         axes.ylabel(ylabel_str)
 
 
-def decode_numeric_predictions(predictions):
-    decoded_predictions = []
-    for i, prediction in enumerate(predictions):
-        for j, decoded_path in enumerate(prediction):
-            sentence = "".join([PREDICTION_FLAGS.n2c_map[int(c)] for c in decoded_path[0, :] if int(c) != -1])
-            decoded_predictions.append((i, j, sentence))
-    return decoded_predictions
-
-
 def mask_sentence(sentence, fill_mask_pipeline):
     words = sentence.split(" ")
     nW = len(words)
@@ -97,41 +89,42 @@ if __name__ == '__main__':
     # set logging to only show errors
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-    print("\n_____INITIALIZING LANGUAGE MODEL PIPELINE_____")
-    lm_mask_pipeline = masked_pipeline_from_trained_model(PREDICTION_FLAGS.models['lm_path'])
+#    print("INITIALIZING LANGUAGE MODEL PIPELINE".center(50, "_")
+#    lm_mask_pipeline = masked_pipeline_from_trained_model(PREDICTION_FLAGS.models['lm_path'])
 
-    print("\n_____RECORDING AUDIO_____")
-    timespan, frames, stream = record_audio(5)
-
-    print("\n_____CONVERTING TO FEATURE REPRESENTATION_____")
-    extractor = FeatureExtractor([np.array(frames)], PREDICTION_FLAGS.recording['rate'],
+    print("INITIALIZING FEATURE EXTRACTOR".center(50, "_"))
+    extractor = FeatureExtractor(PREDICTION_FLAGS.recording['rate'],
                                  feature_type=PREDICTION_FLAGS.features['type'],
                                  energy=PREDICTION_FLAGS.features['energy'],
                                  deltas=PREDICTION_FLAGS.features['deltas'])
 
-    features = extractor.transform_data()[0]
+    print("RECORDING AUDIO".center(50, "_"))
+    timespan, frames, stream = record_audio(5)
 
-    print("\n_____PREDICTING FROM SAVED MODEL_____")
+    print("CONVERTING TO FEATURE REPRESENTATION".center(50, "_"))
+    features = extractor.transform_data([np.array(frames)])[0]
+
+    print("PREDICTING FROM SAVED MODEL".center(50, "_"))
     predictions = predict_from_saved_model(PREDICTION_FLAGS.models['am_path'], features)
 
-    print("\n_____DECODING PREDICTIONS_____")
-    decoded_predictions = decode_numeric_predictions(predictions)
+    print("TRANSCRIBING TO STRINGS".center(50, "_"))
+    string_predictions = convert_to_strings(predictions, apply_autocorrect=True, digitize=True)
 
-    print("\n_____RUNNING THROUGH LANGUAGE MODEL_____")
-    sentence = mask_sentence(decoded_predictions[0][2], lm_mask_pipeline)
+#    print("RUNNING THROUGH LANGUAGE MODEL".center(50, "_")
+#    sentence = mask_sentence(decoded_predictions[0][2], lm_mask_pipeline)
 
-    print("\n_____RESULT_____")
-    print(f"AM: {decoded_predictions[0][2]}")
-    print(f"LM: {sentence}")
+    print("RESULT".center(50, "_"))
+    print(f"AM: {string_predictions[0][2]}")
+#    print(f"LM: {sentence}")
 
-    print("\n_____REPLAYING AUDIO STREAM_____")
+    print("REPLAYING AUDIO STREAM".center(50, "_"))
     stream.write(b"".join(frames))
 
-    print("\n_____CLOSING STREAM_____")
+    print("CLOSING STREAM".center(50, "_"))
     stream.stop_stream()
     stream.close()
 
-    print("\n_____PLOTTING AUDIO AND FEATURES_____")
+    print("PLOTTING AUDIO AND FEATURES".center(50, "_"))
     fig, ax = plt.subplots(2)
     plot_audio(timespan, frames, axes=ax[0])
     extractor.plot_cepstra([features], 1, axes=ax[1])

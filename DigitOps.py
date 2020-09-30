@@ -18,14 +18,14 @@ def _combine_digits(d2re_base):
 
 class DigitTranscriber:
     D2RE_BASE = {0: r"\bnul\w+",
-                 1: r"\bjedn\w+",
+                 1: r"(\bjedn\w+|\bprvní|\bprvý|\bprvej)",
                  2: r"(\bdva|\bdvě|\bdvoj\w+|\bdruh\w+)",
                  3: r"(\btři|\btroj\w+|\btřetí)",
-                 4: r"(\bčtyři|čtvrt\w+|\bčtyřk\w+)",
+                 4: r"(\bčtyř\w*|čtvrt\w+|\bštyř\w*)",
                  5: r"(\bpět|\bpětk\w+|\bpáté\w+)",
                  6: r"\bšest\w*",
-                 7: r"\bsedm\w*",
-                 8: r"\bosm\w*",
+                 7: r"(\bsedm\w*|\bsedum)",
+                 8: r"(\bosm\w*|\bosum)",
                  9: r"(\bdevět|\bdevát\w+|\bdevít\w+)",
                  10: r"(\bdeset|\bdesát\w+|\bdesít\w+)",
                  11: r"\bjedenáct\w*",
@@ -34,16 +34,16 @@ class DigitTranscriber:
                  14: r"\bčtrnáct\w*",
                  15: r"\bpatnáct\w*",
                  16: r"\bšestnáct\w*",
-                 17: r"\bsedmnáct\w*",
-                 18: r"\bosmnáct\w*",
+                 17: r"\bsedu?mnáct\w*",
+                 18: r"\bosu?mnáct\w*",
                  19: r"\bdevatenáct\w*",
                  20: r"(\bdvacet|\bdvacát\w+|\bdvacít\w+)",
                  30: r"(\btřicet|\btřicát\w+|\btřicít\w+)",
-                 40: r"(\bčtyřicet|\bčtyřicát\w+|\bčtyřicít\w+)",
+                 40: r"(\b[šč]tyřicet|\b[šč]tyřicát\w+|\b[šč]tyřicít\w+)",
                  50: r"\bpadesát\w*",
                  60: r"\bšedesát\w*",
-                 70: r"\bsedmdesát\w*",
-                 80: r"\bosmdesát\w*",
+                 70: r"(\bsedmdesát\w*|\bsedumdesát\w*)",
+                 80: r"(\bosmdesát\w*|\bosumdesát\w*)",
                  90: r"\bdevadesát\w*"}
 
     d2re = _combine_digits(D2RE_BASE)
@@ -73,11 +73,11 @@ class DigitTranscriber:
 if __name__ == '__main__':
     dt = DigitTranscriber()
 
-    sentence = "To jsem takhle jel dvacet devítkou a pak vystoupil na osmičce a došel za patnáct hodin do Berouna."
+    sentence = "To jsem takhle poprvé první den jednou v osumnáct osmnáct a sedmnáct sedumnáct a sedum nebo osm minut jel dvacet devítkou a pak vystoupil na osmičce a došel za patnáct hodin do Berouna a pak štyřicet štyři hodin pěšky."
 
     transcribed_sentence = dt.transcribe(sentence)
 
     print(transcribed_sentence)
 
-    print(dt.counter)
+    print(dt.count_nonzero())
 
