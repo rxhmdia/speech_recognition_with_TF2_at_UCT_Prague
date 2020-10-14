@@ -1,7 +1,7 @@
 import os
 
 from FLAGS import FLAGS
-from Model import train_model
+from Models import train_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 

@@ -8,10 +8,10 @@ from matplotlib import pyplot as plt
 
 class FeatureExtractor:
 
-    def __init__(self, data, fs, feature_type='MFSC', **kwargs):
+    def __init__(self, fs, feature_type='MFSC', **kwargs):
         """
 
-        :param data: list of 1d numpy arrays which represent the signal (audio)
+
         :param fs: sample rate of the signals in data
         :param feature_type: (str) type of the features ('MFSC' or 'MFCC')
         :arg kwargs:
@@ -26,7 +26,6 @@ class FeatureExtractor:
             :param cepstrums: slice of the final cepstra which are to be used as features (default: slice(1, 13))
             :param deltas: Tuple[int] containing span of deltas and delta-deltas
         """
-        self.data = data
         self.fs = fs                                                                     # Hz
         self.type = feature_type
         self.alpha = kwargs['alpha'] if 'alpha' in kwargs else 0.95                      # float
@@ -46,9 +45,14 @@ class FeatureExtractor:
         self.filterbanks = np.zeros((self.nbanks, self.nfft//2 + 1))  # filters to be applied to power_stft
         self.log_sum = (np.asarray(0, dtype=np.float32),)             # log10 of matmul(power_stft, filterbanks)
 
-    def transform_data(self):
+    def transform_data(self, data):
+        """
 
-        data = self.pre_emphasis(self.data, self.alpha)
+        :param data: list of 1d numpy arrays which represent the signal (audio)
+        :return:
+        """
+
+        data = self.pre_emphasis(data, self.alpha)
         frames = self.make_frames(data, self.fs, self.framewidth, self.framestride)
         hamminged = self.hamming(frames)
         fft = self.fourier_transform(hamminged, self.nfft)

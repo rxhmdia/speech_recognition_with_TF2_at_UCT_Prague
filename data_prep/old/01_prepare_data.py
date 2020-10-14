@@ -73,8 +73,8 @@ def prepare_data(files, save_folder, dataset="pdtsc", label_max_duration=10.0, s
                 LOGGER.debug(f"\t\t output.shape: {audio[ii].shape}")
 
             LOGGER.info(f"\tApplying FeatureExtractor on audio")
-            feat_ext = FeatureExtractor(audio, fs, feature_type=feature_type, energy=energy, deltas=deltas, nbanks=nbanks)
-            cepstra = feat_ext.transform_data()  # list of 2D arrays
+            feat_ext = FeatureExtractor(fs, feature_type=feature_type, energy=energy, deltas=deltas, nbanks=nbanks)
+            cepstra = feat_ext.transform_data(audio)  # list of 2D arrays
 
             # filter out cepstra which are containing nan values
             if filter_nan:
