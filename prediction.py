@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 
 from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
-from Models import predict_from_saved_model, convert_to_strings
+from Models import load_model, predict_from_saved_model, convert_to_strings
 
 from transformer_support import masked_pipeline_from_trained_model
 
@@ -104,8 +104,11 @@ if __name__ == '__main__':
     print("CONVERTING TO FEATURE REPRESENTATION".center(50, "_"))
     features = extractor.transform_data([np.array(frames)])[0]
 
+    print("LOADING MODEL OBJECT FROM SAVED FILE".center(50, "_"))
+    model = load_model(PREDICTION_FLAGS.models['am_path'])
+
     print("PREDICTING FROM SAVED MODEL".center(50, "_"))
-    predictions = predict_from_saved_model(PREDICTION_FLAGS.models['am_path'], features)
+    predictions = predict_from_saved_model(model, features)
 
     print("TRANSCRIBING TO STRINGS".center(50, "_"))
     string_predictions = convert_to_strings(predictions, apply_autocorrect=True, digitize=True)

@@ -505,6 +505,13 @@ def train_model(run_number):
             break
 
 
+def load_model(path_to_model):
+    return tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf,
+                                                                      'BGRUwDropout': BGRUwDropout,
+                                                                      'LanguageModel': LanguageModel},
+                                      compile=False)
+
+
 def _serialize_array(y_pred, y_true):
     feature = {
         'y_pred': tf.train.Feature(int64_list=tf.train.Int64List(value=y_pred.flatten())),
@@ -514,13 +521,13 @@ def _serialize_array(y_pred, y_true):
     return example.SerializeToString()
 
 
-def save_pred_true_pairs_to_tfrecord(path_to_model, tf_ds, output_path,
+def save_pred_true_pairs_to_tfrecord(model, tf_ds, output_path,
                                      beam_width=PREDICTION_FLAGS.beam_width,
                                      top_paths=1):
     """ Load model from path_to_model, calculate logits from files in tf_ds and decode outputs
     to produce predictions. Finally save predictions along with true transcripts to tfrecord file.
     
-    :param path_to_model: (str) path to .h5 saved model
+    :param model: (keras.Model) keras model object
     :param tf_ds: (tf.data.Dataset) dataset with x, y, size_x, size_y, data structure
     :param output_path: (str) path to which (y_pred, y_true) pairs will be saved as .tfrecord file
     :param beam_width: (int) beam width of ctc beam search decoder
@@ -535,7 +542,7 @@ def save_pred_true_pairs_to_tfrecord(path_to_model, tf_ds, output_path,
 
     for x, y_true, _, _ in tf_ds.unbatch():
         x_np = x.numpy()
-        y_pred = predict_from_saved_model(path_to_model, x_np, beam_width, top_paths)[0][0].numpy()
+        y_pred = predict_from_saved_model(model, x_np, beam_width, top_paths)[0][0].numpy()
 
         serialized = _serialize_array(y_pred, y_true.numpy())
         writer.write(serialized)
@@ -546,12 +553,12 @@ def save_pred_true_pairs_to_tfrecord(path_to_model, tf_ds, output_path,
     writer.close()
 
 
-def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTION_FLAGS.beam_width,
+def predict_from_saved_model(model, feature_inputs, beam_width=PREDICTION_FLAGS.beam_width,
                              top_paths=PREDICTION_FLAGS.top_paths):
     """ Load model from path_to_model, calculate logits from feature_input and decode outputs
     to produce numeric predictions
 
-    :param path_to_model: (str) path to .h5 saved model
+    :param model: (keras.Model) keras model object
     :param feature_inputs: (numpy float array or list of numpy float arrays)
     :param beam_width: (int) beam width of ctc beam search decoder
     :param top_paths: (int) number of best paths to be predicted
@@ -560,11 +567,6 @@ def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTIO
     """
 
     predictions = []
-
-    model = tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf,
-                                                                      'BGRUwDropout': BGRUwDropout,
-                                                                      'LanguageModel': LanguageModel},
-                                       compile=False)
 
     if isinstance(feature_inputs, np.ndarray):
         inputs = [feature_inputs]

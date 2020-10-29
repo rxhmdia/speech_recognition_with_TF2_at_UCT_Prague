@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from DataOps import load_datasets
 from FLAGS import PREDICTION_FLAGS
 from FeatureExtraction import FeatureExtractor
-from Models import save_pred_true_pairs_to_tfrecord, convert_to_strings
+from Models import load_model, save_pred_true_pairs_to_tfrecord, convert_to_strings
 
 
 _PATHS = ["b:/!temp/PDTSC_MFSC_unigram_40_banks_DEBUG_min_100_max_3000_tfrecord/1.0/"]
@@ -69,15 +69,13 @@ if __name__ == '__main__':
                                  energy=PREDICTION_FLAGS.features['energy'],
                                  deltas=PREDICTION_FLAGS.features['deltas'])
 
+    print("LOADING MODEL OBJECT FROM SAVED FILE".center(50, "_"))
+    model = load_model(PREDICTION_FLAGS.models['am_path'])
 
     for path in _PATHS:
         print(f"Current FOLDER: {os.path.split(path)[-1]}".center(50, "_"))
         ds_train, ds_test, num_train_batches, num_test_batches = load_datasets(path)
 
         print("SAVING PREDICTIONS FROM MODEL AND TRUE VALUES TO TFRECORDS".center(50, "_"))
-        save_pred_true_pairs_to_tfrecord(PREDICTION_FLAGS.models['am_path'],
-                                         ds_train,
-                                         output_path=_OUTPUT_PATHS[0])
-        save_pred_true_pairs_to_tfrecord(PREDICTION_FLAGS.models['am_path'],
-                                         ds_test,
-                                         output_path=_OUTPUT_PATHS[1])
+        save_pred_true_pairs_to_tfrecord(model, ds_train, output_path=_OUTPUT_PATHS[0])
+        save_pred_true_pairs_to_tfrecord(model, ds_test, output_path=_OUTPUT_PATHS[1])
