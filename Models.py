@@ -1,4 +1,5 @@
 import os
+import sys
 
 from typing import Tuple, List
 
@@ -504,10 +505,51 @@ def train_model(run_number):
             break
 
 
+def _serialize_array(y_pred, y_true):
+    feature = {
+        'y_pred': tf.train.Feature(int64_list=tf.train.Int64List(value=y_pred.flatten())),
+        'y_true': tf.train.Feature(int64_list=tf.train.Int64List(value=y_true.flatten()))
+    }
+    example = tf.train.Example(features=tf.train.Features(feature=feature))
+    return example.SerializeToString()
+
+
+def save_pred_true_pairs_to_tfrecord(path_to_model, tf_ds, output_path,
+                                     beam_width=PREDICTION_FLAGS.beam_width,
+                                     top_paths=1):
+    """ Load model from path_to_model, calculate logits from files in tf_ds and decode outputs
+    to produce predictions. Finally save predictions along with true transcripts to tfrecord file.
+    
+    :param path_to_model: (str) path to .h5 saved model
+    :param tf_ds: (tf.data.Dataset) dataset with x, y, size_x, size_y, data structure
+    :param output_path: (str) path to which (y_pred, y_true) pairs will be saved as .tfrecord file
+    :param beam_width: (int) beam width of ctc beam search decoder
+    :param top_paths: (int) number of best paths to be predicted
+    :return: None
+    """
+
+    tfrecord_path = output_path + '.tfrecord'
+    os.makedirs("".join(os.path.split(tfrecord_path)[:-1]), exist_ok=True)
+    writer = tf.io.TFRecordWriter(tfrecord_path)
+    fl_counter = 0
+
+    for x, y_true, _, _ in tf_ds.unbatch():
+        x_np = x.numpy()
+        y_pred = predict_from_saved_model(path_to_model, x_np, beam_width, top_paths)[0][0].numpy()
+
+        serialized = _serialize_array(y_pred, y_true.numpy())
+        writer.write(serialized)
+        fl_counter += 1
+        print(f"\rNumber of files: {fl_counter}", end="")
+        sys.stdout.flush()
+
+    writer.close()
+
+
 def predict_from_saved_model(path_to_model, feature_inputs, beam_width=PREDICTION_FLAGS.beam_width,
                              top_paths=PREDICTION_FLAGS.top_paths):
     """ Load model from path_to_model, calculate logits from feature_input and decode outputs
-    to produce prediction string
+    to produce numeric predictions
 
     :param path_to_model: (str) path to .h5 saved model
     :param feature_inputs: (numpy float array or list of numpy float arrays)
