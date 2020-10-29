@@ -524,7 +524,7 @@ def _serialize_array(y_pred, y_true):
 def save_pred_true_pairs_to_tfrecord(model, tf_ds, output_path,
                                      beam_width=PREDICTION_FLAGS.beam_width,
                                      top_paths=1):
-    """ Load model from path_to_model, calculate logits from files in tf_ds and decode outputs
+    """ run model to calculate logits from data in files in tf_ds and decode outputs
     to produce predictions. Finally save predictions along with true transcripts to tfrecord file.
     
     :param model: (keras.Model) keras model object
@@ -543,8 +543,9 @@ def save_pred_true_pairs_to_tfrecord(model, tf_ds, output_path,
     for x, y_true, _, _ in tf_ds.unbatch():
         x_np = x.numpy()
         y_pred = predict_from_saved_model(model, x_np, beam_width, top_paths)[0][0].numpy()
+        y_true = tf.boolean_mask(y_true, tf.not_equal(y_true, -1)).numpy()  # remove -1 padding
 
-        serialized = _serialize_array(y_pred, y_true.numpy())
+        serialized = _serialize_array(y_pred, y_true)
         writer.write(serialized)
         fl_counter += 1
         print(f"\rNumber of files: {fl_counter}", end="")
