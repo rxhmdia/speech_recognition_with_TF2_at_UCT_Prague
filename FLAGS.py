@@ -21,6 +21,14 @@ class FLAGS:
     n2c_map = {val: idx for idx, val in c2n_map.items()}
     alphabet_size = len(c2n_map)
 
+    # Character-level map for encoder-decoder language models (0 is padding for this one!!!!)
+    c2n_map_lm = {'<pad>': 0}
+    for k, v in c2n_map.items():
+        c2n_map_lm[k] = v + 1
+    c2n_map_lm["<sos>"] = len(c2n_map_lm)
+    c2n_map_lm["<eos>"] = len(c2n_map_lm)
+    n2c_map_lm = {val: key for key, val in c2n_map_lm.items()}
+
     logger_level = "INFO"
     logger = console_logger(__name__, logger_level)
 
@@ -69,6 +77,7 @@ class FLAGS:
 
     feature_pad_val = 0.0
     label_pad_val = -1
+    label_pad_val_lm = 0
 
     # MODEL
     save_architecture_image = False
@@ -111,12 +120,38 @@ class FLAGS:
     }
 
     # LANGUAGE MODEL params
+    # simple language model
     lm_gru_params = {
         'use': True,
         'num_units': [128, 64],
         'batch_norm': False,
         'drop_rates': [0.0, 0.0]
     }
+
+    # encoder-decoder model
+    enc_dec_hyperparams = {
+        'train_dataset_path': "b:/!temp/y_pred_y_true_pairs/train.tfrecord",
+        'epochs': 100,
+        'batch_size': 64,
+        'lr': 0.001,
+        'clipnorm': 5.,
+        'shuffle_buffer': 200000,
+        'checkpoint_dir': "./results/lm/training_ckpt_enc_dec"
+    }
+
+    lm_enc_params = {
+        'vocab_size': alphabet_size + 1,  # + 1 for padding value
+        'embedding_dim': 64,
+        'gru_dims': [64, 64, 64],
+    }
+
+    lm_dec_params = {
+        'vocab_size': len(c2n_map_lm),
+        'embedding_dim': 64,
+        'gru_dims': [64, 64, 64],
+    }
+
+    # ---------------------
 
     # Optimizer
     lr = 0.01

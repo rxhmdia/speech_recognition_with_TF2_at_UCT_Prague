@@ -827,8 +827,7 @@ def _parse_proto_lm(example_proto):
     return parsed_features['y_pred'], parsed_features['y_true']
 
 
-def _read_tfrecords_for_lm(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrecord"),
-                           shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
+def _read_tfrecords_for_lm(file_names, shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
     files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
     ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto_lm,
                                                                    num_parallel_calls=_AUTOTUNE),
@@ -837,6 +836,44 @@ def _read_tfrecords_for_lm(file_names=("file1.tfrecord", "file2.tfrecord", "file
                           num_parallel_calls=_AUTOTUNE)
     return ds
 
+
+def _expand_by_adding_decoder_inputs_and_outputs(y_pred, y_true):
+    y_pred = tf.cast(y_pred, dtype=tf.int32) + 1
+    y_true = tf.cast(y_true, dtype=tf.int32) + 1
+    y_true_in = tf.concat([tf.constant([FLAGS.c2n_map_lm['<sos>']]), y_true], axis=-1)
+    y_true_out = tf.concat([tf.constant([FLAGS.c2n_map_lm['<eos>']]), y_true], axis=-1)
+
+    return y_pred, y_true_in, y_true_out
+
+
+def load_and_preprocess_lm_dataset(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrecord"),
+                                   batch_size=FLAGS.enc_dec_hyperparams['batch_size'],
+                                   shuffle_buffer_size=FLAGS.enc_dec_hyperparams['shuffle_buffer']):
+
+    # load dataset from one or multiple .tfrecord files
+    dataset = _read_tfrecords_for_lm(file_names)
+
+    # expand dataset for use with encoder-decoder with forced teacher
+    dataset = dataset.map(_expand_by_adding_decoder_inputs_and_outputs, num_parallel_calls=_AUTOTUNE)
+
+    # shuffle
+    dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
+
+    for y, y_t_in, y_t_o in dataset.take(1):
+        print(y.shape, y_t_in.shape, y_t_o.shape)
+
+    # batch_dataset
+    padded_shapes = ([None], [None], [None])
+    paddin_values = (tf.constant(FLAGS.label_pad_val_lm),
+                     tf.constant(FLAGS.label_pad_val_lm),
+                     tf.constant(FLAGS.label_pad_val_lm))
+
+    dataset = (dataset
+               .padded_batch(batch_size, padding_values=paddin_values, padded_shapes=padded_shapes)
+               .shuffle(buffer_size=shuffle_buffer_size//batch_size, reshuffle_each_iteration=True)
+               .prefetch(_AUTOTUNE))
+
+    return dataset
 
 """#####################################################################################################################
 ### |                                                                                                              | ###

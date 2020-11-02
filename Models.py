@@ -1,12 +1,9 @@
 import os
 import sys
 
-from typing import Tuple, List
-
 import numpy as np
 import tensorflow as tf
 
-from autocorrect import Speller
 from tensorflow.keras.layers import Layer, InputLayer, Reshape, Conv2D, Dropout, BatchNormalization, GRU, Bidirectional, Dense, ReLU, Permute, Lambda
 from tensorflow.keras import Model
 import tensorflow.keras.backend as K
@@ -14,75 +11,10 @@ import tensorflow.keras.backend as K
 from tqdm import tqdm
 
 from DataOps import load_datasets, DataLoader
-from DigitOps import DigitTranscriber
 from FLAGS import FLAGS, PREDICTION_FLAGS
+from LanguageModels import SPELL, DT
 from utils import create_save_path, save_config, decay_value
 from helpers import console_logger
-
-
-SPELL = Speller('cs', fast=False, threshold=2)
-DT = DigitTranscriber()
-
-
-class LanguageModel(Layer):
-    GruUnits = Tuple[int, ...]
-    DropRates = List
-
-    def __init__(self, vocab_size: int, gru_units: GruUnits, batch_norm: bool, bn_momentum: float, drop_rates: DropRates,
-                 name="language_model", dtype=float, trainable=True):
-        """ Simple language model which takes AM output and returns output of same shape
-
-        :param vocab_size (int): size of the input vocabulary
-        :param gru_units (Tuple[int, ...]): sizes of the GRU hidden units (len represents number of gru layers)
-        :param batch_norm (bool): whether to use batch normalization after each layer
-        :param bn_momentum (float): momentum of batch_normalization layers (unused if batch_norm==False)
-        :param drop_rates List[float, ...]: drop rates for Dropout layers after each BGRU layer
-        """
-        super(LanguageModel, self).__init__(name=name, dtype=dtype, trainable=trainable)
-
-        self._name = name
-        self._dtype = dtype
-        self._trainable = trainable
-        self._C = vocab_size     # character vocabulary size
-        self._B = gru_units      # hidden sizes of BGRU layers
-        self._D = drop_rates     # drop rates for embedding and bgru layers
-        self._D.extend([0.]*(len(gru_units) - len(drop_rates)))  # extend empty dropout rates
-        self.batch_norm = batch_norm
-        self.bn_momentum = bn_momentum
-
-        self.bgru = []
-        self.bgru_bn = []
-        self.bgru_dropouts = []
-
-    def build(self, input_shape):
-        self.inp = InputLayer(input_shape=input_shape)
-        for size, drop in zip(self._B, self._D):
-            self.bgru.append(Bidirectional(GRU(size, return_sequences=True)))
-            if self.batch_norm:
-                self.bgru_bn.append(BatchNormalization(momentum=self.bn_momentum))
-            self.bgru_dropouts.append(Dropout(drop))
-        self.dense = Dense(self._C)
-
-    def call(self, x_input, training=None):
-        x = self.inp(x_input)
-        for i in range(0, len(self.bgru)):
-            x = self.bgru[i](x)
-            if self.batch_norm:
-                x = self.bgru_bn[i](x)
-            if training:
-                x = self.bgru_dropouts[i](x)
-        return self.dense(x)
-
-    def get_config(self):
-        config = {"name": self._name,
-                  "trainable": self._trainable,
-                  "dtype": self._dtype,
-                  "vocab_size": self._C,
-                  "gru_units": self._B,
-                  "batch_norm": self.batch_norm,
-                  "bn_momentum": self.bn_momentum,
-                  "drop_rates": list(self._D)}
-        return config
 
 
 ''' """""""""""""""""""""""
