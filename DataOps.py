@@ -813,6 +813,33 @@ def load_datasets(load_dir,
 
 """#####################################################################################################################
 ### |                                                                                                              | ###
+### |------------------------------------------LANGUAGE MODEL DATA LOADER------------------------------------------| ###
+### |                                                                                                              | ###
+#####################################################################################################################"""
+
+
+def _parse_proto_lm(example_proto):
+    features = {
+        'y_pred': tf.io.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
+        'y_true': tf.io.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
+    }
+    parsed_features = tf.io.parse_single_example(example_proto, features)
+    return parsed_features['y_pred'], parsed_features['y_true']
+
+
+def _read_tfrecords_for_lm(file_names=("file1.tfrecord", "file2.tfrecord", "file3.tfrecord"),
+                           shuffle=False, seed=None, block_length=FLAGS.num_train_data, cycle_length=8):
+    files = tf.data.Dataset.list_files(file_names, shuffle=shuffle, seed=seed)
+    ds = files.interleave(lambda x: tf.data.TFRecordDataset(x).map(_parse_proto_lm,
+                                                                   num_parallel_calls=_AUTOTUNE),
+                          block_length=block_length,
+                          cycle_length=cycle_length,
+                          num_parallel_calls=_AUTOTUNE)
+    return ds
+
+
+"""#####################################################################################################################
+### |                                                                                                              | ###
 ### |-----------------------------------------------DATA PREPARATION-----------------------------------------------| ###
 ### |                                                                                                              | ###
 #####################################################################################################################"""

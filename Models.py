@@ -599,6 +599,8 @@ def convert_to_strings(predictions, apply_autocorrect=False, digitize=False):
     decoded_predictions = []
     for i, prediction in enumerate(predictions):
         for j, decoded_path in enumerate(prediction):
+            if tf.rank(decoded_path) == 1:
+                decoded_path = tf.expand_dims(decoded_path, 0)
             sentence = "".join([PREDICTION_FLAGS.n2c_map[int(c)] for c in decoded_path[0, :] if int(c) != -1])
             if apply_autocorrect:
                 sentence = SPELL(sentence)
