@@ -859,9 +859,6 @@ def load_and_preprocess_lm_dataset(file_names=("file1.tfrecord", "file2.tfrecord
     # shuffle
     dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
 
-    for y, y_t_in, y_t_o in dataset.take(1):
-        print(y.shape, y_t_in.shape, y_t_o.shape)
-
     # batch_dataset
     padded_shapes = ([None], [None], [None])
     paddin_values = (tf.constant(FLAGS.label_pad_val_lm),

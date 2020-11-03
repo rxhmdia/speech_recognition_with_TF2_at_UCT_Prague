@@ -90,6 +90,7 @@ class EncoderLM(tf.keras.Model):
                  gru_dims=FLAGS.lm_enc_params['gru_dims']):
         super(EncoderLM, self).__init__()
         self.gru_dims = gru_dims
+        use_cudnn = FLAGS.enc_dec_hyperparams["cuDNNGRU"]
 
         # embedding layer
         self.embedding = Embedding(vocab_size, embedding_dim, mask_zero=True)
@@ -97,10 +98,10 @@ class EncoderLM(tf.keras.Model):
         # GRU layers
         self.grus = list()
         for dims in gru_dims[:-1]:
-            self.grus.append(GRU(dims, return_sequences=True))
+            self.grus.append(GRU(dims, return_sequences=True, reset_after=use_cudnn))
 
         # final GRU layer
-        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True))
+        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True, reset_after=use_cudnn))
 
     def call(self, input_sequence):
         x = self.embedding(input_sequence)
@@ -120,6 +121,7 @@ class DecoderLM(tf.keras.Model):
                  gru_dims=FLAGS.lm_dec_params['gru_dims']):
         super(DecoderLM, self).__init__()
         self.gru_dims = gru_dims
+        use_cudnn = FLAGS.enc_dec_hyperparams["cuDNNGRU"]
 
         # embedding layer
         self.embedding = Embedding(vocab_size, embedding_dim, mask_zero=True)
@@ -127,10 +129,10 @@ class DecoderLM(tf.keras.Model):
         # GRU layers
         self.grus = list()
         for dims in gru_dims[:-1]:
-            self.grus.append(GRU(dims, return_sequences=True))
+            self.grus.append(GRU(dims, return_sequences=True, reset_after=use_cudnn))
 
         # Final GRU layer
-        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True))
+        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True, reset_after=use_cudnn))
 
         # Dense layer output
         self.dense = Dense(vocab_size)
@@ -188,6 +190,7 @@ def accuracy_func(y_true, y_pred, padding_vals=FLAGS.label_pad_val_lm):
 
 
 # Use the @tf.function decorator to take advance of static graph computation
+@tf.function(experimental_relax_shapes=True)
 def train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optimizer):
     """ A training step, train a batch of the data and return the loss value reached
         Input:

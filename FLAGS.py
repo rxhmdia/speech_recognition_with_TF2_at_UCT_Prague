@@ -130,7 +130,8 @@ class FLAGS:
 
     # encoder-decoder model
     enc_dec_hyperparams = {
-        'train_dataset_path': "b:/!temp/y_pred_y_true_pairs/train.tfrecord",
+        'train_dataset_path': "b:/!temp/y_pred_y_true_pairs/pdtsc/train.tfrecord",
+        'cuDNNGRU': False,
         'epochs': 100,
         'batch_size': 64,
         'lr': 0.001,
