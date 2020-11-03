@@ -128,33 +128,37 @@ class DecoderLM(tf.keras.Model):
 
         # GRU layers
         self.grus = list()
-        for dims in gru_dims[:-1]:
-            self.grus.append(GRU(dims, return_sequences=True, reset_after=use_cudnn))
+        for i, dims in enumerate(gru_dims[:-1]):
+            self.grus.append(GRU(dims, return_sequences=True, return_state=True, reset_after=use_cudnn, name=f"gru_dec_{i}"))
 
         # Final GRU layer
-        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True, reset_after=use_cudnn))
+        self.grus.append(GRU(gru_dims[-1], return_sequences=True, return_state=True, reset_after=use_cudnn, name=f"gru_dec_final"))
 
         # Dense layer output
         self.dense = Dense(vocab_size)
 
-    def call(self, input_sequence, state):
+    def call(self, input_sequence, states_in):
         # call embedding layer
         x = self.embedding(input_sequence)
 
         # first GRU layer (initialized with state from encoder)
-        x = self.grus[0](x, state)
+        x, first_state = self.grus[0](x, states_in[0])
 
+        middle_states = []
         # call GRU layers
-        for gru in self.grus[1:-1]:
-            x = gru(x)
+        for i, gru in enumerate(self.grus[1:-1]):
+            x, states = gru(x, states_in[i+1])
+            middle_states.append(states)
 
         # call final GRU layer
-        x, final_state = self.grus[-1](x)
+        x, final_state = self.grus[-1](x, states_in[-1])
 
         # call dense layer for logit outputs
         logits = self.dense(x)
 
-        return logits, final_state
+        all_states = [first_state, *middle_states, final_state]
+
+        return logits, all_states
 
 
 def loss_func(targets, logits, padding_vals=FLAGS.label_pad_val_lm):
@@ -170,17 +174,27 @@ def loss_func(targets, logits, padding_vals=FLAGS.label_pad_val_lm):
     return loss
 
 
-def accuracy_func(y_true, y_pred, padding_vals=FLAGS.label_pad_val_lm):
+def accuracy_func(y_true, y_pred, padding_vals=FLAGS.label_pad_val_lm, pad_lengths=False):
     """ custom accuracy function based on number of correct classes vs total number of classes (true sentence length)
 
     :param y_true: true values [batch_size, sequence_length]
     :param y_pred: predicted values [batch_size, sequence_length, vocab_size]
     :param padding_vals: values which represent padding (default: -1)
+    :param pad_lengths: if we want to pad values (useful during test mode)
     :return: accuracy based on number of correct chracters/words divided by total length of the true sentence
     """
     pred_values = K.cast(K.argmax(y_pred, axis=-1), dtype=tf.int32)
-    correct = K.cast(K.equal(y_true, pred_values), dtype=tf.float32)
 
+    if pad_lengths:
+        true_len = y_true.shape[1]
+        pred_len = y_pred.shape[1]
+        # padding for longer/shorter results than correct values
+        if true_len - pred_len > 0:
+            pred_values = tf.pad(pred_values, [[0, 0], [0, true_len - pred_len]], constant_values=100000)
+        elif true_len - pred_len < 0:
+            y_true = tf.pad(y_true, [[0, 0], [0, pred_len - true_len]], constant_values=100000)
+
+    correct = K.cast(K.equal(y_true, pred_values), dtype=tf.float32)
     # don't include padding values in accuracy calculations
     mask = K.cast(K.greater(y_true, padding_vals), dtype=tf.float32)
     n_correct = K.sum(mask*correct)
@@ -211,11 +225,9 @@ def train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optim
         en_outputs = encoder(input_seq)
         # Set the encoder and decoder states
         en_states = en_outputs[1:]
-        de_states = en_states
-        # Get the encoder outputs
-        de_outputs = decoder(target_seq_in, de_states)
-        # Take the actual output
-        logits = de_outputs[0]
+        de_states = [en_states, None, None]
+        # Get the decoder outputs
+        logits, de_states_new = decoder(target_seq_in, de_states)
         # Calculate the loss function
         loss = loss_func(target_seq_out, logits)
         acc = accuracy_func(target_seq_out, logits)
@@ -229,40 +241,103 @@ def train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optim
     return loss, acc
 
 
-# Create the main train function
-def main_train(encoder, decoder, dataset, n_epochs, optimizer, checkpoint, checkpoint_prefix):
-    losses = []
-    accuracies = []
-
-    for e in range(n_epochs):
-        # Get the initial time
-        start = time.time()
-        # For every batch data
-        for batch, (input_seq, target_seq_in, target_seq_out) in enumerate(dataset):
-            # Train and get the loss value
-            loss, accuracy = train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optimizer)
-
-            if batch % 100 == 0:
-                # Store the loss and accuracy values
-                losses.append(loss)
-                accuracies.append(accuracy)
-                print('Epoch {} Batch {} Loss {:.4f} Acc:{:.4f}'.format(e + 1, batch, loss.numpy(), accuracy.numpy()))
-
-        # saving (checkpoint) the model every 2 epochs
-        if (e + 1) % 2 == 0:
-            checkpoint.save(file_prefix=checkpoint_prefix)
-
-        print('Time taken for 1 epoch {:.4f} sec\n'.format(time.time() - start))
-
-    return losses, accuracies
-
-
-def run_lm_training(encoder, decoder, dataset, epochs=FLAGS.enc_dec_hyperparams['epochs']):
+def test_step(encoder, decoder, input_seq, target_seq_out):
     """
 
     :param encoder:
     :param decoder:
-    :param dataset:
+    :param input_seq:
+    :param target_seq_out:
+    :return:
+    """
+
+    # Get the encoder outputs
+    en_outputs = encoder(input_seq)
+    # Set the encoder and decoder states
+    en_states = en_outputs[1:]
+    de_states = [en_states, None, None]
+
+    # Create initial decoder inputs for the batch:
+    de_inputs = tf.ones((tf.shape(input_seq)[0], 1), tf.int32)*FLAGS.c2n_map_lm["<sos>"]
+
+    full_outputs = None
+    while True:
+        # Decode and get the output probabilities
+        de_outputs, de_states = decoder(de_inputs, de_states)
+
+        if full_outputs is None:
+            full_outputs = de_outputs
+        else:
+            full_outputs = tf.concat([full_outputs, de_outputs], 1)
+        de_inputs = tf.argmax(de_outputs, -1)
+        last_class = de_inputs.numpy()[0][-1]
+
+        if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or full_outputs.shape[1] >= FLAGS.enc_dec_hyperparams["max_length"]:
+            accuracy = accuracy_func(target_seq_out, full_outputs, pad_lengths=True)
+            break
+
+    return accuracy
+
+
+# Create the main train function
+def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpoint, checkpoint_prefix):
+    losses = []
+    accuracies = []
+    test_accuracies = []
+    epoch_mean_test_accuracy = [0., ]
+
+    for e in range(n_epochs):
+        print(f"EPOCH {e}")
+        # Get the initial time
+        start = time.time()
+
+        # For every batch of training data
+        print("Train Dataset")
+        accuracy_sum = 0.
+        for batch, (input_seq, target_seq_in, target_seq_out) in enumerate(train_ds):
+            # Train and get the loss value
+            loss, accuracy = train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optimizer)
+
+            accuracy_sum += accuracy.numpy()
+
+            if batch % 100 == 0:
+                # Store the loss and accuracy values
+                losses.append(loss)
+                accuracies.append(accuracy_sum/batch)
+                print('Batch {} Loss {:.4f} Acc:{:.4f}'.format(batch, loss.numpy(), accuracies[-1]))
+
+        # For testing data
+        accuracy_sum = 0.
+        if test_ds:
+            print("Test Dataset")
+            for batch, (input_seq, _, target_seq_out) in enumerate(test_ds):
+                accuracy = test_step(encoder, decoder, input_seq, target_seq_out)
+
+                accuracy_sum += accuracy.numpy()
+
+                if batch % 10 == 0:
+                    test_accuracies.append(accuracy_sum/batch)
+                    print('Batch {} Acc:{:.4f}'.format(batch, test_accuracies[-1]))
+
+        epoch_mean_test_accuracy.append(tf.reduce_mean(test_accuracies).numpy())
+
+        # saving (checkpoint) of the model if it fares better than in the last epoch
+        if epoch_mean_test_accuracy[-1] > epoch_mean_test_accuracy[-2]:
+            checkpoint.save(file_prefix=checkpoint_prefix)
+
+        print('Time taken for 1 epoch {:.4f} sec\n'.format(time.time() - start))
+        print(f"Mean test accuracy {epoch_mean_test_accuracy[-1]}")
+
+    return losses, accuracies, test_accuracies, epoch_mean_test_accuracy
+
+
+def run_lm_training(encoder, decoder, train_ds, test_ds, epochs=FLAGS.enc_dec_hyperparams['epochs']):
+    """
+
+    :param encoder:
+    :param decoder:
+    :param train_ds:
+    :param test_ds:
     :param epochs:
     :return:
     """
@@ -275,9 +350,12 @@ def run_lm_training(encoder, decoder, dataset, epochs=FLAGS.enc_dec_hyperparams[
                                      encoder=encoder,
                                      decoder=decoder)
 
-    losses, accuracies = main_train(encoder, decoder, dataset, epochs, optimizer, checkpoint, checkpoint_prefix)
+    losses, accuracies, test_accuracies, epoch_mean_test_accuracy = main_train(encoder, decoder,
+                                                                               train_ds, test_ds,
+                                                                               epochs, optimizer,
+                                                                               checkpoint, checkpoint_prefix)
 
-    return losses, accuracies
+    return losses, accuracies, test_accuracies, epoch_mean_test_accuracy
 
 
 def check_enc_dec_lm(vocab_size=4, embedding_dim=16, encoder_gru_dims=(16, 8), decoder_gru_dims=(8, 4)):
@@ -304,18 +382,20 @@ def check_enc_dec_lm(vocab_size=4, embedding_dim=16, encoder_gru_dims=(16, 8), d
 
 
 if __name__ == '__main__':
-    check_enc_dec_lm()
+    # check_enc_dec_lm()
 
     # initialize encoder and decoder models with default params from FLAGS
     encoder = EncoderLM()
     decoder = DecoderLM()
 
-    # load dataset
+    # load datasets
     train_dataset_path = FLAGS.enc_dec_hyperparams['train_dataset_path']
     ds_train = load_and_preprocess_lm_dataset((train_dataset_path, ))
+    test_dataset_path = FLAGS.enc_dec_hyperparams['test_dataset_path']
+    ds_test = load_and_preprocess_lm_dataset((test_dataset_path, ), batch_size=1)
 
     # run training on training dataset
-    losses, accuracies = run_lm_training(encoder, decoder, ds_train)
+    losses, accuracies, test_accuracies, epoch_mean_test_accuracy = run_lm_training(encoder, decoder, ds_train, ds_test)
 
     # plot results
     plt.figure()

@@ -131,25 +131,27 @@ class FLAGS:
     # encoder-decoder model
     enc_dec_hyperparams = {
         'train_dataset_path': "b:/!temp/y_pred_y_true_pairs/pdtsc/train.tfrecord",
+        'test_dataset_path': "b:/!temp/y_pred_y_true_pairs/pdtsc/test.tfrecord",
         'cuDNNGRU': False,
-        'epochs': 100,
+        'epochs': 5,
         'batch_size': 64,
         'lr': 0.001,
         'clipnorm': 5.,
         'shuffle_buffer': 200000,
-        'checkpoint_dir': "./results/lm/training_ckpt_enc_dec"
+        'checkpoint_dir': "./results/lm/training_ckpt_enc_dec",
+        'max_length': 300,
     }
 
     lm_enc_params = {
         'vocab_size': alphabet_size + 1,  # + 1 for padding value
-        'embedding_dim': 64,
-        'gru_dims': [64, 64, 64],
+        'embedding_dim': 32,
+        'gru_dims': [32, 64, 32],
     }
 
     lm_dec_params = {
         'vocab_size': len(c2n_map_lm),
         'embedding_dim': 64,
-        'gru_dims': [64, 64, 64],
+        'gru_dims': [32, 32, 32],
     }
 
     # ---------------------
