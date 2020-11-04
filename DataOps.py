@@ -841,7 +841,7 @@ def _expand_by_adding_decoder_inputs_and_outputs(y_pred, y_true):
     y_pred = tf.cast(y_pred, dtype=tf.int32) + 1
     y_true = tf.cast(y_true, dtype=tf.int32) + 1
     y_true_in = tf.concat([tf.constant([FLAGS.c2n_map_lm['<sos>']]), y_true], axis=-1)
-    y_true_out = tf.concat([tf.constant([FLAGS.c2n_map_lm['<eos>']]), y_true], axis=-1)
+    y_true_out = tf.concat([y_true, tf.constant([FLAGS.c2n_map_lm['<eos>']])], axis=-1)
 
     return y_pred, y_true_in, y_true_out
 

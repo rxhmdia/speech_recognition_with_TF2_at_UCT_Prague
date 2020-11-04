@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from DataOps import load_datasets, DataLoader
 from FLAGS import FLAGS, PREDICTION_FLAGS
-from LanguageModels import SPELL, DT
+from LanguageModels import GRULanguageModel, SPELL, DT
 from utils import create_save_path, save_config, decay_value
 from helpers import console_logger
 
@@ -181,11 +181,11 @@ def build_model(kernel_initializer):
     if FLAGS.lm_gru_params['use']:
         logits = tf.roll(logits, -1, axis=1)
         # Output logits from LM
-        logits = LanguageModel(FLAGS.alphabet_size + 1,
-                               FLAGS.lm_gru_params['num_units'],
-                               FLAGS.lm_gru_params['batch_norm'],
-                               FLAGS.bn_momentum,
-                               FLAGS.lm_gru_params['drop_rates'])(logits)
+        logits = GRULanguageModel(FLAGS.alphabet_size + 1,
+                                  FLAGS.lm_gru_params['num_units'],
+                                  FLAGS.lm_gru_params['batch_norm'],
+                                  FLAGS.bn_momentum,
+                                  FLAGS.lm_gru_params['drop_rates'])(logits)
 
     return Model(inputs=x_in, outputs=logits)
 

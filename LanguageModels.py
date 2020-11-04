@@ -241,42 +241,46 @@ def train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optim
     return loss, acc
 
 
-def test_step(encoder, decoder, input_seq, target_seq_out):
+def test_step(encoder, decoder, input_seq, target_seq_out, min_len=2):
     """
 
     :param encoder:
     :param decoder:
     :param input_seq:
     :param target_seq_out:
+    :param min_len:
     :return:
     """
 
-    # Get the encoder outputs
-    en_outputs = encoder(input_seq)
-    # Set the encoder and decoder states
-    en_states = en_outputs[1:]
-    de_states = [en_states, None, None]
+    if input_seq.shape[1] < min_len:
+        return tf.constant(0.5)
+    else:
+        # Get the encoder outputs
+        en_outputs = encoder(input_seq)
+        # Set the encoder and decoder states
+        en_states = en_outputs[1:]
+        de_states = [en_states, None, None]
 
-    # Create initial decoder inputs for the batch:
-    de_inputs = tf.ones((tf.shape(input_seq)[0], 1), tf.int32)*FLAGS.c2n_map_lm["<sos>"]
+        # Create initial decoder inputs for the batch:
+        de_inputs = tf.ones((tf.shape(input_seq)[0], 1), tf.int32)*FLAGS.c2n_map_lm["<sos>"]
 
-    full_outputs = None
-    while True:
-        # Decode and get the output probabilities
-        de_outputs, de_states = decoder(de_inputs, de_states)
+        full_outputs = None
+        while True:
+            # Decode and get the output probabilities
+            de_outputs, de_states = decoder(de_inputs, de_states)
 
-        if full_outputs is None:
-            full_outputs = de_outputs
-        else:
-            full_outputs = tf.concat([full_outputs, de_outputs], 1)
-        de_inputs = tf.argmax(de_outputs, -1)
-        last_class = de_inputs.numpy()[0][-1]
+            if full_outputs is None:
+                full_outputs = de_outputs
+            else:
+                full_outputs = tf.concat([full_outputs, de_outputs], 1)
+            de_inputs = tf.argmax(de_outputs, -1)
+            last_class = de_inputs[0, -1]
 
-        if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or full_outputs.shape[1] >= FLAGS.enc_dec_hyperparams["max_length"]:
-            accuracy = accuracy_func(target_seq_out, full_outputs, pad_lengths=True)
-            break
+            if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or full_outputs.shape[1] >= FLAGS.enc_dec_hyperparams["max_length"]:
+                accuracy = accuracy_func(target_seq_out, full_outputs, pad_lengths=True)
+                break
 
-    return accuracy
+        return accuracy
 
 
 # Create the main train function
@@ -307,26 +311,30 @@ def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpo
                 print('Batch {} Loss {:.4f} Acc:{:.4f}'.format(batch, loss.numpy(), accuracies[-1]))
 
         # For testing data
-        accuracy_sum = 0.
         if test_ds:
+            accuracy_sum = 0.
             print("Test Dataset")
             for batch, (input_seq, _, target_seq_out) in enumerate(test_ds):
                 accuracy = test_step(encoder, decoder, input_seq, target_seq_out)
 
                 accuracy_sum += accuracy.numpy()
 
-                if batch % 10 == 0:
+                if batch % 100 == 0:
                     test_accuracies.append(accuracy_sum/batch)
                     print('Batch {} Acc:{:.4f}'.format(batch, test_accuracies[-1]))
 
-        epoch_mean_test_accuracy.append(tf.reduce_mean(test_accuracies).numpy())
+            epoch_mean_test_accuracy.append(tf.reduce_mean(test_accuracies).numpy())
+            print(f"Mean test accuracy {epoch_mean_test_accuracy[-1]}")
 
-        # saving (checkpoint) of the model if it fares better than in the last epoch
-        if epoch_mean_test_accuracy[-1] > epoch_mean_test_accuracy[-2]:
-            checkpoint.save(file_prefix=checkpoint_prefix)
+            # saving (checkpoint) of the model if it fares better than in the last epoch
+            if epoch_mean_test_accuracy[-1] > epoch_mean_test_accuracy[-2]:
+                checkpoint.save(file_prefix=checkpoint_prefix)
+        else:
+            # save checkpoint blindly every 2 epochs
+            if (e + 1) % 2 == 0:
+                checkpoint.save(file_prefix=checkpoint_prefix)
 
         print('Time taken for 1 epoch {:.4f} sec\n'.format(time.time() - start))
-        print(f"Mean test accuracy {epoch_mean_test_accuracy[-1]}")
 
     return losses, accuracies, test_accuracies, epoch_mean_test_accuracy
 
@@ -382,6 +390,8 @@ def check_enc_dec_lm(vocab_size=4, embedding_dim=16, encoder_gru_dims=(16, 8), d
 
 
 if __name__ == '__main__':
+    physical_devices = tf.config.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     # check_enc_dec_lm()
 
     # initialize encoder and decoder models with default params from FLAGS
