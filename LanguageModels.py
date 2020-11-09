@@ -200,7 +200,9 @@ def accuracy_func(y_true, y_pred, padding_vals=FLAGS.label_pad_val_lm, pad_lengt
     n_correct = K.sum(mask*correct)
     n_total = K.sum(mask)
 
-    return n_correct/n_total
+    acc = n_correct/n_total
+
+    return acc
 
 
 # Use the @tf.function decorator to take advance of static graph computation
@@ -230,7 +232,7 @@ def train_step(encoder, decoder, input_seq, target_seq_in, target_seq_out, optim
         logits, de_states_new = decoder(target_seq_in, de_states)
         # Calculate the loss function
         loss = loss_func(target_seq_out, logits)
-        acc = accuracy_func(target_seq_out, logits)
+    acc = accuracy_func(target_seq_out, logits)
 
     variables = encoder.trainable_variables + decoder.trainable_variables
     # Calculate the gradients for the variables
@@ -307,7 +309,7 @@ def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpo
             if batch % 100 == 0:
                 # Store the loss and accuracy values
                 losses.append(loss)
-                accuracies.append(accuracy_sum/batch)
+                accuracies.append(accuracy_sum/(batch+1))
                 print('Batch {} Loss {:.4f} Acc:{:.4f}'.format(batch, loss.numpy(), accuracies[-1]))
 
         # For testing data
@@ -320,7 +322,7 @@ def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpo
                 accuracy_sum += accuracy.numpy()
 
                 if batch % 100 == 0:
-                    test_accuracies.append(accuracy_sum/batch)
+                    test_accuracies.append(accuracy_sum / (batch + 1))
                     print('Batch {} Acc:{:.4f}'.format(batch, test_accuracies[-1]))
 
             epoch_mean_test_accuracy.append(tf.reduce_mean(test_accuracies).numpy())

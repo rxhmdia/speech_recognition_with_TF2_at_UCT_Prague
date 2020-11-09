@@ -440,7 +440,7 @@ def train_model(run_number):
 def load_model(path_to_model):
     return tf.keras.models.load_model(path_to_model, custom_objects={'tf': tf,
                                                                       'BGRUwDropout': BGRUwDropout,
-                                                                      'LanguageModel': LanguageModel},
+                                                                      'GRULanguageModel': GRULanguageModel},
                                       compile=False)
 
 
