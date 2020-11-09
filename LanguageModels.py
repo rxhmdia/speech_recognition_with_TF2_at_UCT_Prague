@@ -280,9 +280,10 @@ def test_step(encoder, decoder, input_seq, target_seq_out, min_len=2):
 
             if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or full_outputs.shape[1] >= FLAGS.enc_dec_hyperparams["max_length"]:
                 accuracy = accuracy_func(target_seq_out, full_outputs, pad_lengths=True)
+                output_length = tf.constant(full_outputs.shape[1], dtype=tf.float32)
                 break
 
-        return accuracy
+        return accuracy, output_length
 
 
 # Create the main train function
@@ -290,6 +291,7 @@ def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpo
     losses = []
     accuracies = []
     test_accuracies = []
+    average_lengths = []
     epoch_mean_test_accuracy = [0., ]
 
     for e in range(n_epochs):
@@ -315,15 +317,18 @@ def main_train(encoder, decoder, train_ds, test_ds, n_epochs, optimizer, checkpo
         # For testing data
         if test_ds:
             accuracy_sum = 0.
+            decoded_len_sum = 0.
             print("Test Dataset")
             for batch, (input_seq, _, target_seq_out) in enumerate(test_ds):
-                accuracy = test_step(encoder, decoder, input_seq, target_seq_out)
+                accuracy, output_length = test_step(encoder, decoder, input_seq, target_seq_out)
 
                 accuracy_sum += accuracy.numpy()
+                decoded_len_sum += output_length.numpy()
 
                 if batch % 100 == 0:
                     test_accuracies.append(accuracy_sum / (batch + 1))
-                    print('Batch {} Acc:{:.4f}'.format(batch, test_accuracies[-1]))
+                    average_lengths.append(decoded_len_sum / (batch + 1))
+                    print('Batch {} Acc: {:.4f} Len: {:.0f}'.format(batch, test_accuracies[-1], average_lengths[-1]))
 
             epoch_mean_test_accuracy.append(tf.reduce_mean(test_accuracies).numpy())
             print(f"Mean test accuracy {epoch_mean_test_accuracy[-1]}")
