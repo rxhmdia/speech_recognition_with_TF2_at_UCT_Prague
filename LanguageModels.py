@@ -253,9 +253,11 @@ def test_step(encoder, decoder, input_seq, target_seq_out, min_len=2):
     :param min_len:
     :return:
     """
+    # TODO: solve problem with iterating over scalar tensor on výpočetní PC
 
     if input_seq.shape[1] < min_len:
-        return tf.constant(0.5)
+        accuracy = tf.constant(0.)
+        output_length = tf.constant(1.)
     else:
         # Get the encoder outputs
         en_outputs = encoder(input_seq)
@@ -277,13 +279,13 @@ def test_step(encoder, decoder, input_seq, target_seq_out, min_len=2):
                 full_outputs = tf.concat([full_outputs, de_outputs], 1)
             de_inputs = tf.argmax(de_outputs, -1)
             last_class = de_inputs[0, -1]
+            output_length = tf.constant(full_outputs.shape[1], dtype=tf.float32)
 
-            if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or full_outputs.shape[1] >= FLAGS.enc_dec_hyperparams["max_length"]:
+            if tf.equal(last_class, FLAGS.c2n_map_lm['<eos>']) or output_length >= FLAGS.enc_dec_hyperparams["max_length"]:
                 accuracy = accuracy_func(target_seq_out, full_outputs, pad_lengths=True)
-                output_length = tf.constant(full_outputs.shape[1], dtype=tf.float32)
                 break
 
-        return accuracy, output_length
+    return accuracy, output_length
 
 
 # Create the main train function
